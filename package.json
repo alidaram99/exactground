@@ -1,0 +1,16 @@
+{
+  "name": "exactground",
+  "version": "0.1.0",
+  "description": "Stop AI coding agents from installing packages that do not exist (slopsquatting) — hooks for Claude Code, Codex, Gemini CLI and Cursor, plus version-exact API checks.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "bin": { "exactground": "./bin/exactground.mjs" },
+  "exports": "./src/index.mjs",
+  "files": ["bin", "src", "data", "hooks", ".claude-plugin", ".codex-plugin", "plugin.json", "README.md", "LICENSE", "llms.txt"],
+  "scripts": { "test": "node --test test/*.test.mjs" },
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/alidaram99/exactground.git" },
+  "homepage": "https://alidaram99.github.io/exactground/",
+  "bugs": "https://github.com/alidaram99/exactground/issues",
+  "keywords": ["slopsquatting", "package-hallucination", "ai-coding-agents", "claude-code", "codex", "gemini-cli", "cursor", "supply-chain-security", "typosquatting", "npm", "pypi", "mcp", "agent-hooks", "dependency-check"]
+}

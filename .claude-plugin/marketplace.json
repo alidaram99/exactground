@@ -1,0 +1,12 @@
+{
+  "name": "exactground-marketplace",
+  "description": "ExactGround: stop coding agents from installing packages that do not exist.",
+  "owner": { "name": "Drop-in APIs", "url": "https://github.com/alidaram99" },
+  "plugins": [
+    {
+      "name": "exactground",
+      "source": "./",
+      "description": "Block hallucinated and typosquatted npm/PyPI installs before the agent runs them."
+    }
+  ]
+}

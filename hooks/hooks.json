@@ -1,0 +1,18 @@
+{
+  "description": "ExactGround: block installs of packages that do not exist (or look like typosquats) before the agent runs them.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/bin/exactground.mjs", "hook", "claude"],
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+# ExactGround
+
+> Free, open-source guard that stops AI coding agents (Claude Code, Codex, Gemini CLI, Cursor) from installing npm or PyPI packages that do not exist (hallucinated packages / slopsquatting), versions that were never published, and young look-alikes of popular packages. Optional hosted MCP API checks that a function, class or method exists in an exact package version.
+
+- Repository: https://github.com/alidaram99/exactground
+- Website: https://alidaram99.github.io/exactground/
+- Hosted API (MCP, pay per check): https://apify.com/dropin-apis/exactground-api — MCP endpoint https://dropin-apis--exactground-api.apify.actor/mcp (Authorization: Bearer <Apify token>)
+
+## Quick answers
+
+- Check names now: `npx -y github:alidaram99/exactground check pypi:reqeusts react@99.0.0`
+- Claude Code: `claude plugin marketplace add alidaram99/exactground` then `claude plugin install exactground@exactground-marketplace` (PreToolUse hook on Bash|Write|Edit|MultiEdit).
+- Codex: `codex plugin marketplace add alidaram99/exactground --ref v0.1.0`, or `exactground init codex --write` (PreToolUse on Bash and apply_patch).
+- Gemini CLI: `exactground init gemini --write` (BeforeTool). Cursor: `exactground init cursor --write` (beforeShellExecution).
+- Blocks: names missing from the registry, never-published pinned versions, npm security placeholders, look-alikes of top-3,000 packages that are < 180 days old or < 500 weekly downloads. Warns: new (< 30 days), low downloads, deprecated, yanked.
+- Checks bare installs (`npm install`, `uv sync`, `poetry install`) against the lockfile, `pip install -r` files, and manifest edits/patches.
+- Config: `.exactground.json` with `allow`, `privateScopes`, `strict`.
+- Hosted tools: check_symbols ($0.002/symbol), check_packages ($0.0005/package), check_diff ($0.01/diff). npm types read with the TypeScript compiler (DefinitelyTyped fallback); Python wheels parsed statically, never executed. `exists: null` = not knowable statically.
+- Evidence: USENIX Security 2025 — 19.7% of 2.23M generated code samples referenced a non-existent package; 43% of invented names recur on every rerun.
+- Limits: agent hooks are guardrails, not a security boundary; fails open on registry outage unless strict.
+
+## Docs
+
+- [README](https://github.com/alidaram99/exactground/blob/main/README.md)
+- [Hosted API README](https://apify.com/dropin-apis/exactground-api)

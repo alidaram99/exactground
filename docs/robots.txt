@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://alidaram99.github.io/exactground/sitemap.xml

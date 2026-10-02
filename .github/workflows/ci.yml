@@ -1,0 +1,23 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [20, 24]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm test
+      - name: Live smoke test against the public registries
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 24
+        run: |
+          node bin/exactground.mjs check react pypi:requests
+          if node bin/exactground.mjs check pypi:reqeusts; then echo "expected a block"; exit 1; fi

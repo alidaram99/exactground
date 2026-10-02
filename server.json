@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.alidaram99/exactground",
+  "title": "ExactGround",
+  "description": "Check npm/PyPI packages exist and that a function or method exists in an exact package version.",
+  "version": "0.1.0",
+  "websiteUrl": "https://alidaram99.github.io/exactground/",
+  "repository": { "url": "https://github.com/alidaram99/exactground", "source": "github" },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://dropin-apis--exactground-api.apify.actor/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Bearer <your Apify API token> (https://console.apify.com/settings/integrations). Billed per check to your Apify account.",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

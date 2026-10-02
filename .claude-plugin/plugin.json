@@ -1,0 +1,10 @@
+{
+  "name": "exactground",
+  "version": "0.1.0",
+  "description": "Blocks installs of packages that do not exist on npm or PyPI, and flags typosquat look-alikes, before a coding agent runs them.",
+  "author": { "name": "Drop-in APIs", "url": "https://github.com/alidaram99" },
+  "homepage": "https://alidaram99.github.io/exactground/",
+  "repository": "https://github.com/alidaram99/exactground",
+  "license": "MIT",
+  "keywords": ["slopsquatting", "package-hallucination", "supply-chain-security", "npm", "pypi"]
+}

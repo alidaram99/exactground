@@ -1,0 +1,17 @@
+{
+  "description": "ExactGround: block installs of packages that do not exist; review and trust this hook in /hooks before relying on it.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^(Bash|apply_patch)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"process.argv.splice(1,process.argv.length,'exactground','hook','codex');import(require('node:url').pathToFileURL(require('node:path').join(process.env.PLUGIN_ROOT,'bin','exactground.mjs')).href)\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

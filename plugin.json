@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "exactground",
+  "version": "0.1.0",
+  "description": "Block hallucinated and typosquatted npm/PyPI installs before a coding agent runs them.",
+  "extensions": {
+    "com.openai": { "hooks": "./hooks/codex.json" }
+  }
+}
