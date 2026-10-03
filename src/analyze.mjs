@@ -4,31 +4,48 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseCommand } from './parse-command.mjs';
 import { addedDeps, manifestType, ecosystemOf, unlockedManifestDeps, requirementsFileDeps } from './manifest.mjs';
+import { projectRoot } from './trust.mjs';
 
 function readFile(file) {
   try { return fs.readFileSync(file, 'utf8'); } catch { return ''; }
 }
 
-/** Deps introduced by a shell command line run in `cwd`. Returns {deps, customIndex, notes}. */
+// Installs the parser cannot see into (security review S2): inline scripts, command substitution, eval.
+const INSTALL_WORDS = /\b(npm|pnpm|yarn|bun|npx|bunx|pip[\d.]*|uv|uvx|poetry|pdm|pipx)\b[^\n;|&]{0,40}\b(install|add|i|dlx|exec|sync)\b|\b(npx|uvx|bunx)\b/;
+const OPAQUE = [
+  /\b(node|deno|bun|python[\d.]*|py|ruby|perl|php|pwsh|powershell)(\.exe)?\s+(-e|-c|-p|--eval|--print|-command)\b/i,
+  /\$\(|`/,
+  /\beval\b/,
+];
+
+/** True if the command contains an install that ExactGround cannot parse (it would run unchecked). */
+export function hasOpaqueInstall(command) {
+  const c = String(command || '');
+  return INSTALL_WORDS.test(c) && OPAQUE.some((re) => re.test(c));
+}
+
+/** Deps introduced by a shell command line run in `cwd`. Returns {deps, customIndex, notes, errors, opaque}. */
 export function depsFromCommand(command, cwd) {
   const intents = parseCommand(command);
   const deps = [];
   const notes = [];
+  const errors = [];
   let customIndex = false;
+  const root = projectRoot(cwd);
   for (const it of intents) {
     if (it.kind === 'package') deps.push({ ecosystem: it.ecosystem, name: it.name, spec: it.spec, source: `${it.manager} command` });
     else if (it.kind === 'custom-index') customIndex = true;
     else if (it.kind === 'requirements') {
-      const found = requirementsFileDeps(it.file, cwd);
-      deps.push(...found.map((d) => ({ ...d, source: it.file })));
-      if (!found.length) notes.push(`${it.file}: not found or empty`);
+      const found = requirementsFileDeps(it.file, cwd, root);
+      deps.push(...found.deps.map((d) => ({ ...d, source: it.file })));
+      errors.push(...found.errors);
     } else if (it.kind === 'manifest') {
       const { dir, deps: un } = unlockedManifestDeps(cwd, it.ecosystem);
       deps.push(...un.map((d) => ({ ...d, source: `${it.ecosystem === 'npm' ? 'package.json' : 'pyproject.toml'} (not in lockfile)` })));
       if (!dir) notes.push(`${it.manager}: no manifest found from ${cwd}`);
     }
   }
-  return { deps, customIndex, notes, intents: intents.length };
+  return { deps, customIndex, notes, errors, opaque: hasOpaqueInstall(command), intents: intents.length };
 }
 
 /** Deps added by writing `newText` to `file` (compares with what is on disk now). */

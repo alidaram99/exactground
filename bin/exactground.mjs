@@ -11,6 +11,7 @@ import { Cache } from '../src/registry.mjs';
 import { runHook, VENDORS } from '../src/hook.mjs';
 import { depsFromManifest, manifestType, requirementsFileDeps } from '../src/manifest.mjs';
 import { hookConfig, installHooks } from '../src/install.mjs';
+import { trustProjectConfig, findProjectConfig, projectRoot } from '../src/trust.mjs';
 import { callApi } from '../src/api.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -25,6 +26,8 @@ Usage:
   exactground manifest [file]           Check every dependency in package.json, requirements*.txt or pyproject.toml
   exactground hook <agent>              Agent hook (reads JSON on stdin): ${VENDORS.join(' | ')}
   exactground init <agent> [--write]    Print (or merge into this project) the hook config for an agent
+  exactground trust [file]              Approve this project's .exactground.json for the agent hooks (run it yourself;
+                                        any later edit needs approval again)
   exactground api <tool> <json>         Paid version-exact checks via the hosted API (needs APIFY_TOKEN):
                                         check_symbols | check_packages | check_diff
   exactground --version | --help
@@ -94,8 +97,11 @@ async function main(argv) {
     case 'scan': {
       const command = pos.join(' ');
       if (!command) { console.error('Usage: exactground scan "<command>"'); return 2; }
-      const { deps, customIndex, notes } = depsFromCommand(command, process.cwd());
+      const { deps, customIndex, notes, errors, opaque } = depsFromCommand(command, process.cwd());
       for (const n of notes) console.error(`note: ${n}`);
+      for (const e of errors) console.error(`BLOCK   ${e}`);
+      if (opaque) console.error('BLOCK   the command installs from inside an inline script, command substitution or eval; it cannot be checked');
+      if (errors.length || opaque) { await report(deps, flags, { customIndex }); return 1; }
       return report(deps, flags, { customIndex });
     }
     case 'manifest': {
@@ -104,8 +110,20 @@ async function main(argv) {
       if (!file || !fs.existsSync(file)) { console.error('No manifest found. Usage: exactground manifest [file]'); return 2; }
       const type = manifestType(file);
       if (!type) { console.error(`Unsupported manifest: ${file}`); return 2; }
-      const deps = type === 'requirements' ? requirementsFileDeps(file, process.cwd()) : depsFromManifest(type, fs.readFileSync(file, 'utf8'));
-      return report(deps, flags);
+      if (type === 'requirements') {
+        const { deps, errors } = requirementsFileDeps(file, process.cwd(), projectRoot(process.cwd()));
+        for (const e of errors) console.error(`BLOCK   ${e}`);
+        const code = await report(deps, flags);
+        return errors.length ? 1 : code;
+      }
+      return report(depsFromManifest(type, fs.readFileSync(file, 'utf8')), flags);
+    }
+    case 'trust': {
+      const file = pos[0] || findProjectConfig(process.cwd());
+      if (!file || !fs.existsSync(file)) { console.error('No .exactground.json found. Usage: exactground trust [file]'); return 2; }
+      const { file: full, hash } = trustProjectConfig(file);
+      console.log(`Approved ${full} (sha256 ${hash.slice(0, 12)}…). The agent hooks will now honour it; any edit needs approval again.`);
+      return 0;
     }
     case 'hook':
       return runHook(pos[0]);

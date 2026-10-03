@@ -82,7 +82,7 @@ export async function lookupNpm(name, { fetchImpl = fetch, deep = false, timeout
   if (deep) {
     const [full, dl] = await Promise.all([
       getJson(fetchImpl, `https://registry.npmjs.org/${npmPath(name)}`, { timeoutMs }),
-      getJson(fetchImpl, `https://api.npmjs.org/downloads/point/last-week/${name}`, { timeoutMs }),
+      getJson(fetchImpl, `https://api.npmjs.org/downloads/point/last-week/${encodeURIComponent(name)}`, { timeoutMs }), // S9: scoped names
     ]);
     if (full.status === 200) out.created = full.json.time?.created ?? null;
     if (dl.status === 200) out.weeklyDownloads = dl.json.downloads ?? null;

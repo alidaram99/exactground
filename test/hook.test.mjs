@@ -15,6 +15,9 @@ import { fakeFetch, NOW } from './helpers.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'eg-proj-'));
 const opts = () => ({ fetchImpl: fakeFetch(), now: NOW, cache: new Cache(null) });
+// Keep every test away from the real user config and cache directories.
+process.env.EXACTGROUND_CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'eg-userconf-'));
+process.env.EXACTGROUND_CACHE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'eg-cache-'));
 
 test('Claude Code: Bash install of a missing package is denied', async () => {
   const r = await evaluate('claude', { tool_name: 'Bash', tool_input: { command: 'npm install reacct-dom-fake' }, cwd: tmp() }, opts());
@@ -144,5 +147,5 @@ test('CLI: --version, usage errors, and hook prints exactly one JSON object', ()
   assert.deepEqual(JSON.parse(h.stdout), {});
   const bad = spawnSync(process.execPath, [cli, 'hook', 'claude'], { input: 'not json', encoding: 'utf8' });
   assert.equal(bad.status, 0);
-  assert.deepEqual(JSON.parse(bad.stdout), {});
+  assert.equal(JSON.parse(bad.stdout).hookSpecificOutput.permissionDecision, 'deny', 'fails closed on internal errors (S2)');
 });

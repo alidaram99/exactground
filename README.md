@@ -3,15 +3,21 @@
 **ExactGround blocks an AI coding agent from installing an npm or PyPI package that does not exist, and its hosted check tells you whether a function exists in the exact version you have installed.**
 
 The free, open-source guard runs as a hook in Claude Code, Codex, Gemini CLI and Cursor. It checks the following against the public npm registry and PyPI **before the command runs**:
-- every `npm`/`pnpm`/`yarn`/`bun`/`npx` and `pip`/`uv`/`poetry`/`pdm`/`pipx` install;
-- every new dependency written into a manifest.
+- the `npm`/`pnpm`/`yarn`/`bun`/`npx` and `pip`/`uv`/`poetry`/`pdm`/`pipx` install commands it can parse;
+- new dependencies written into `package.json`, `requirements*.txt` or `pyproject.toml`.
 
 It blocks hallucinated package names (the root of *slopsquatting*), versions that were never published, young or little-used look-alikes of popular packages, and npm security placeholders. Zero dependencies, local, MIT.
+
+**What it does not see:**
+- Installs hidden inside inline scripts (`node -e`, `python -c`), command substitution (`$(...)`) or `eval` cannot be checked, so the hook **denies** them and asks for a plain install command.
+- Only shell, file-write/edit and patch tools are inspected; other tools and anything run outside the agent (CI, cron) are not.
+- Hooks are guardrails, not a sandbox: an agent with other ways to run code can get around them.
+- If the registry cannot be reached, or the checker itself fails, the hook **denies** by default.
 
 [![CI](https://github.com/alidaram99/exactground/actions/workflows/ci.yml/badge.svg)](https://github.com/alidaram99/exactground/actions/workflows/ci.yml) · Website: https://alidaram99.github.io/exactground/ · Hosted API: https://apify.com/dropin-apis/exactground-api
 
 ```console
-$ npx -y github:alidaram99/exactground check pypi:requests pypi:reqeusts pypi:huggingface-cli react@99.0.0
+$ npx -y github:alidaram99/exactground#v0.1.2 check pypi:requests pypi:reqeusts pypi:huggingface-cli react@99.0.0
 OK      pypi:requests
 BLOCK   pypi:reqeusts — "reqeusts" does not exist on PyPI; did you mean "requests"? (it is 1 edit away)
 BLOCK   pypi:huggingface-cli — "huggingface-cli" does not exist on PyPI
@@ -29,15 +35,15 @@ BLOCK   react@99.0.0 — version 99.0.0 of "react" was never published (latest i
 Node.js 20 or newer. No install needed:
 
 ```sh
-npx -y github:alidaram99/exactground check left-pad expresss pypi:numpy==1.26.4
-npx -y github:alidaram99/exactground scan "npm i zod react-hook-formz && pip install -r requirements.txt"
-npx -y github:alidaram99/exactground manifest package.json
+npx -y github:alidaram99/exactground#v0.1.2 check left-pad expresss pypi:numpy==1.26.4
+npx -y github:alidaram99/exactground#v0.1.2 scan "npm i zod react-hook-formz && pip install -r requirements.txt"
+npx -y github:alidaram99/exactground#v0.1.2 manifest package.json
 ```
 
-For hooks, use a local checkout (faster, and no download on every tool call):
+For hooks, use a local checkout of a tagged release (faster, pinned, and nothing is downloaded at hook time):
 
 ```sh
-git clone --depth 1 --branch v0.1.1 https://github.com/alidaram99/exactground.git ~/tools/exactground
+git clone --depth 1 --branch v0.1.2 https://github.com/alidaram99/exactground.git ~/tools/exactground
 ```
 
 ## Add it to your coding agent
@@ -60,7 +66,7 @@ Manual alternative: `node ~/tools/exactground/bin/exactground.mjs init claude --
 ### Codex
 
 ```sh
-codex plugin marketplace add alidaram99/exactground --ref v0.1.1
+codex plugin marketplace add alidaram99/exactground --ref v0.1.2
 ```
 
 Install the plugin, then review and trust the hook in `/hooks`; Codex only runs trusted hooks. Manual alternative: `exactground init codex --write` writes `.codex/hooks.json`, with `PreToolUse` on `Bash` and `apply_patch`, so patches that add dependencies to `package.json`, `requirements.txt` or `pyproject.toml` are checked too.
@@ -68,7 +74,7 @@ Install the plugin, then review and trust the hook in `/hooks`; Codex only runs 
 ### Gemini CLI (extension)
 
 ```sh
-gemini extensions install https://github.com/alidaram99/exactground --ref v0.1.1
+gemini extensions install https://github.com/alidaram99/exactground --ref v0.1.2
 ```
 
 The extension's `BeforeTool` hook covers `run_shell_command|write_file|replace`. Manual alternative: `exactground init gemini --write` adds the same hook to `.gemini/settings.json`.
@@ -87,7 +93,7 @@ The extension's `BeforeTool` hook covers `run_shell_command|write_file|replace`.
 | Look-alike of a top-3,000 package that is < 180 days old or < 500 weekly downloads | **block** |
 | Look-alike that is old and widely used | warn |
 | Published < 30 days ago, < 500 weekly downloads, deprecated, or yanked | warn |
-| Registry unreachable | allowed with a warning (`--strict` or `"strict": true` blocks) |
+| Registry unreachable | **denied** in the agent hooks (strict is the hook default); the manual CLI warns unless `--strict` |
 | `--index-url`/`--extra-index-url` in use (private packages possible) | missing names only warn |
 
 **Where it looks:**
@@ -103,12 +109,20 @@ Commands wrapped in `bash -lc "…"` are unwrapped.
 **Configuration:** optional `.exactground.json` at the project root:
 
 ```json
-{ "allow": ["my-internal-lib", "pypi:corp-utils"], "privateScopes": ["@acme"], "strict": false, "newPackageDays": 30, "lowDownloads": 500 }
+{ "allow": ["my-internal-lib", "pypi:corp-utils"], "privateScopes": ["@acme"], "newPackageDays": 30, "lowDownloads": 500 }
 ```
 
-Lookups are cached for 24 hours in `~/.cache/exactground` (misses for 30 minutes, so a name registered later is noticed).
+The agent cannot approve its own exceptions:
+- The hooks honour a project `.exactground.json` only after **you** run `exactground trust` in a terminal. That records the file's SHA-256 in your user config directory, outside the project.
+- Any later edit needs approval again.
+- A tool call that writes `.exactground.json`, the approvals or the cache is denied.
+- Settings for all projects can go in `~/.config/exactground/config.json` (`%APPDATA%\exactground\config.json` on Windows).
+
+The manual CLI caches lookups for 24 hours in `~/.cache/exactground`. The agent hooks always re-check the registry and never allow an install from the cache alone.
 
 ## Version-exact API checks (hosted, pay per check)
+
+**Hosted API status:** awaiting publication on the Apify Store. Until [its Store page](https://apify.com/dropin-apis/exactground-api) loads, the MCP URL below answers only its owner. The free local guard works now.
 
 Most hallucinations are real packages used wrongly: `useActionState` in a React 18 project, or `numpy.asfarray` after NumPy 2.0 removed it. The [ExactGround API](https://apify.com/dropin-apis/exactground-api) answers those questions from the published package itself: npm `.d.ts` via the TypeScript compiler, and Python wheels parsed statically, without running any code. It is an MCP server:
 
@@ -128,7 +142,7 @@ From the CLI: `APIFY_TOKEN=… exactground api check_symbols '{"ecosystem":"pypi
 
 | Tool | What it does | Blocks a hallucinated install inside the agent? | Version-exact API check? |
 |---|---|---|---|
-| **ExactGround** | Registry reality + typosquat signals in agent hooks (free); API checks (hosted) | **Yes**: Claude Code, Codex, Gemini CLI, Cursor hooks | **Yes** (hosted API) |
+| **ExactGround** | Registry reality + typosquat signals in agent hooks (free); API checks (hosted) | **Yes**, for the install commands and manifest edits it can parse (Claude Code, Codex, Gemini CLI, Cursor hooks) | **Yes** (hosted API) |
 | [Socket Firewall](https://docs.socket.dev/docs/socket-firewall-overview) | Proxy that blocks confirmed malware at install time | Malware yes; a non-existent name simply fails to install (or installs a fresh squat until it is confirmed) | No |
 | [Context7](https://context7.com/) | Puts version-specific docs into the prompt | No; the agent can still invent names | No; documentation text, not a yes/no check |
 | `npm audit` / `pip-audit` | Known vulnerabilities in installed packages | No; runs after install, on packages that exist | No |
@@ -140,7 +154,7 @@ These work together. ExactGround is the cheap gate in front of the install, and 
 
 ### How do I stop Claude Code from installing hallucinated npm or PyPI packages?
 
-Install the ExactGround Claude Code plugin (two commands above). Its `PreToolUse` hook checks the package names in every Bash install command and every `package.json`/`requirements.txt`/`pyproject.toml` edit, and denies the tool call if a name does not exist.
+Install the ExactGround Claude Code plugin (two commands above). Its `PreToolUse` hook checks the package names in the Bash install commands it can parse and in `package.json`/`requirements.txt`/`pyproject.toml` edits, and denies the tool call if a name does not exist. Installs it cannot parse are denied too.
 
 ### What is slopsquatting?
 
@@ -152,7 +166,7 @@ The local guard sends only package names to the public registries (`registry.npm
 
 ### Will it block my private packages?
 
-Not if you list them in `.exactground.json` (`allow` or `privateScopes`). A missing name only warns when pip/uv use a custom `--index-url`.
+Not if you list them in `.exactground.json` (`allow` or `privateScopes`) and approve the file with `exactground trust`. A missing name only warns when pip/uv use a custom `--index-url`.
 
 ### Does it slow the agent down?
 
@@ -160,7 +174,7 @@ A check is one cached HTTP request per new package name, usually 100–400 ms, a
 
 ### Is a hook a security boundary?
 
-No. Agent hooks are guardrails. Claude Code and Codex document that hooks can time out or be bypassed, Codex hosted tools are not hooked, and Cursor cannot block file edits before they happen. ExactGround fails open on internal errors and registry outages unless you set `strict`. Keep lockfiles, CI checks and an install-time scanner too.
+No. Agent hooks are guardrails. Claude Code and Codex document that hooks can time out or be bypassed, Codex hosted tools are not hooked, and Cursor cannot block file edits before they happen. ExactGround's hooks deny on internal errors and registry outages by default. Set `EXACTGROUND_FAIL_OPEN=1` to allow on internal errors. Keep lockfiles, CI checks and an install-time scanner too.
 
 ### Which ecosystems are supported?
 

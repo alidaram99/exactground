@@ -182,11 +182,26 @@ export function unlockedManifestDeps(cwd, ecosystem) {
   return { dir, deps: locked ? deps.filter((d) => !locked.has(d.name)) : deps };
 }
 
-/** Deps in a requirements file, following nested -r includes (max depth 5). */
-export function requirementsFileDeps(file, cwd, depth = 0) {
+export const MAX_REQUIREMENTS_BYTES = 256 * 1024;
+
+/**
+ * Deps in a requirements file, following nested -r includes (max depth 5). Security review S3: the file and every
+ * include must be a regular file inside `root` (not a symlink) and at most 256 KB; otherwise an error is recorded
+ * and nothing from it is read. Returns {deps, errors}.
+ */
+export function requirementsFileDeps(file, cwd, root = cwd, depth = 0, acc = { deps: [], errors: [] }) {
   const full = path.resolve(cwd || '.', file);
-  const text = read(full);
-  if (text == null || depth > 5) return [];
-  const { deps, includes } = depsFromRequirements(text);
-  return deps.concat(includes.flatMap((inc) => requirementsFileDeps(inc, path.dirname(full), depth + 1)));
+  const base = path.resolve(root || cwd || '.');
+  const rel = path.relative(base, full);
+  if (depth > 5) { acc.errors.push(`${file}: nested -r includes deeper than 5 levels`); return acc; }
+  if (rel.startsWith('..') || path.isAbsolute(rel)) { acc.errors.push(`${file}: outside the project (${base}); refusing to read it`); return acc; }
+  let st;
+  try { st = fs.lstatSync(full); } catch { acc.errors.push(`${file}: not found`); return acc; }
+  if (st.isSymbolicLink()) { acc.errors.push(`${file}: is a symbolic link; refusing to follow it`); return acc; }
+  if (!st.isFile()) { acc.errors.push(`${file}: not a regular file`); return acc; }
+  if (st.size > MAX_REQUIREMENTS_BYTES) { acc.errors.push(`${file}: larger than ${MAX_REQUIREMENTS_BYTES / 1024} KB; refusing to read it`); return acc; }
+  const { deps, includes } = depsFromRequirements(fs.readFileSync(full, 'utf8'));
+  acc.deps.push(...deps);
+  for (const inc of includes) requirementsFileDeps(inc, path.dirname(full), base, depth + 1, acc);
+  return acc;
 }
