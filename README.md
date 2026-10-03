@@ -28,7 +28,7 @@ BLOCK   react@99.0.0 — version 99.0.0 of "react" was never published (latest i
 
 ## Why this matters
 
-- **Package hallucination is common and repeatable.** The USENIX Security 2025 study *We Have a Package for You!* generated 2.23 million code samples with 16 models. **19.7% referenced at least one package that does not exist** (205,474 unique names). 43% of hallucinated names reappeared on all 10 reruns of the same prompt ([paper](https://www.usenix.org/conference/usenixsecurity25/presentation/spracklen)).
+- **Package hallucination is common and repeatable.** The USENIX Security 2025 study *We Have a Package for You!* (Spracklen et al.) had 16 models write **576,000 code samples**. Of the **2.23 million package recommendations** in them, **440,445 (19.7%) named packages that do not exist**, 205,474 unique names. In a separate test, the authors re-ran 500 prompts that had produced a hallucination 10 times each, and 43% of those hallucinated names came back in all 10 runs ([paper](https://www.usenix.org/conference/usenixsecurity25/presentation/spracklen)).
 - **Slopsquatting** turns that into an attack: someone registers the invented name with malware, and the next agent that runs `pip install <invented-name>` installs it ([Wikipedia](https://en.wikipedia.org/wiki/Slopsquatting); [CSA research note, 2026](https://labs.cloudsecurityalliance.org/research/csa-research-note-slopsquatting-ai-supply-chain-20260419-csa/)). `huggingface-cli` (above) is the classic example: a name models invent for the real `huggingface_hub[cli]`.
 - **Agents install without a human looking.** A rule like "don't invent packages" in `CLAUDE.md` or `AGENTS.md` is text the model may ignore, especially after context compaction. A hook is code that runs every time.
 
@@ -124,7 +124,7 @@ The manual CLI caches lookups for 24 hours in `~/.cache/exactground`. The agent 
 
 ## Version-exact API checks (hosted, pay per check)
 
-**Hosted API status:** awaiting publication on the Apify Store. Until [its Store page](https://apify.com/dropin-apis/exactground-api) loads, the MCP URL below answers only its owner. The free local guard works now.
+**Hosted API status:** live on the [Apify Store](https://apify.com/dropin-apis/exactground-api) since 2026-10-03. Calls need your Apify API token (requests without one get HTTP 401).
 
 Most hallucinations are real packages used wrongly: `useActionState` in a React 18 project, or `numpy.asfarray` after NumPy 2.0 removed it. The [ExactGround API](https://apify.com/dropin-apis/exactground-api) answers those questions from the published package itself: npm `.d.ts` via the TypeScript compiler, and Python wheels parsed statically, without running any code. It is an MCP server:
 

@@ -13,7 +13,7 @@ FAQ = [
     ("How do I stop Claude Code from installing hallucinated npm or PyPI packages?",
      "Install the free ExactGround Claude Code plugin: run `claude plugin marketplace add alidaram99/exactground` and `claude plugin install exactground@exactground-marketplace`. Its PreToolUse hook checks every install command and every package.json, requirements.txt or pyproject.toml edit against the npm registry and PyPI, and denies the tool call when a package name does not exist."),
     ("What is slopsquatting?",
-     "Slopsquatting is registering a package name that AI models hallucinate, so that agents or developers who trust the suggestion install the attacker's code. A USENIX Security 2025 study found that 19.7% of 2.23 million AI-generated code samples referenced at least one package that does not exist, and 43% of invented names recurred on every rerun."),
+     "Slopsquatting is registering a package name that AI models hallucinate, so that agents or developers who trust the suggestion install the attacker's code. A USENIX Security 2025 study (Spracklen et al.) had 16 models write 576,000 code samples; of the 2.23 million package recommendations in them, 440,445 (19.7%) named packages that do not exist (205,474 unique names). In a separate rerun of 500 prompts that had produced a hallucination, 10 times each, 43% of those hallucinated names came back in all 10 runs."),
     ("Does ExactGround work with Codex, Gemini CLI and Cursor?",
      "Yes. Codex uses a PreToolUse hook on Bash and apply_patch, Gemini CLI a BeforeTool hook, and Cursor a beforeShellExecution hook. Run `exactground init <agent> --write` in your project."),
     ("How do I check that a function exists in the exact version of a package?",
@@ -81,7 +81,7 @@ OK      pypi:requests
 BLOCK   pypi:reqeusts — "reqeusts" does not exist on PyPI; did you mean "requests"? (it is 1 edit away)
 BLOCK   react@99.0.0 — version 99.0.0 of "react" was never published (latest is 19.3.0)</code></pre>
 <h2>Why</h2>
-<p>A USENIX Security 2025 study generated 2.23 million code samples with 16 models: <strong>19.7% referenced at least one package that does not exist</strong>, and 43% of invented names reappeared on every rerun of the same prompt (<a href="https://www.usenix.org/conference/usenixsecurity25/presentation/spracklen">paper</a>). Attackers register those names (<a href="https://en.wikipedia.org/wiki/Slopsquatting">slopsquatting</a>). Coding agents run installs without a human reading the name, and a rule in <code>CLAUDE.md</code> is text the model may ignore. A hook runs every time.</p>
+<p>A USENIX Security 2025 study (Spracklen et al.) had 16 models write 576,000 code samples. Of the <strong>2.23 million package recommendations</strong> in them, <strong>440,445 (19.7%) named packages that do not exist</strong>, 205,474 unique names. In a separate test, the authors re-ran 500 prompts that had produced a hallucination 10 times each, and 43% of those hallucinated names came back in all 10 runs (<a href="https://www.usenix.org/conference/usenixsecurity25/presentation/spracklen">paper</a>). Attackers register those names (<a href="https://en.wikipedia.org/wiki/Slopsquatting">slopsquatting</a>). Coding agents run installs without a human reading the name, and a rule in <code>CLAUDE.md</code> is text the model may ignore. A hook runs every time.</p>
 <h2>Install in your agent</h2>
 <table>
 <tr><th>Agent</th><th>How</th><th>Hook</th></tr>
@@ -91,7 +91,7 @@ BLOCK   react@99.0.0 — version 99.0.0 of "react" was never published (latest i
 <tr><td>Cursor</td><td><code>exactground init cursor --write</code></td><td>beforeShellExecution</td></tr>
 </table>
 <h2>Version-exact API checks (MCP)</h2>
-<p><strong>Status:</strong> awaiting publication on the Apify Store. Until <a href="https://apify.com/dropin-apis/exactground-api">its Store page</a> loads, the MCP URL below answers only its owner. The free local guard works now.</p>
+<p><strong>Status:</strong> live on the <a href="https://apify.com/dropin-apis/exactground-api">Apify Store</a> since 2026-10-03. Calls need your Apify API token.</p>
 <p>Real packages are also used wrongly: <code>useActionState</code> in a React 18 project, <code>numpy.asfarray</code> after NumPy 2.0 removed it. The hosted ExactGround API reads the published package (npm <code>.d.ts</code> via the TypeScript compiler, Python wheels parsed statically, never executed) and answers per symbol. <code>check_symbols</code> $0.002/symbol · <code>check_packages</code> $0.0005/package · <code>check_diff</code> $0.01/diff.</p>
 <pre><code>claude mcp add --transport http exactground https://dropin-apis--exactground-api.apify.actor/mcp \\
   --header "Authorization: Bearer $APIFY_TOKEN"</code></pre>

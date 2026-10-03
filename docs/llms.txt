@@ -16,10 +16,10 @@
 - Checks bare installs (`npm install`, `uv sync`, `poetry install`) against the lockfile, `pip install -r` files, and manifest edits/patches.
 - Config: `.exactground.json` with `allow`, `privateScopes`, `strict`.
 - Hosted tools: check_symbols ($0.002/symbol), check_packages ($0.0005/package), check_diff ($0.01/diff). npm types read with the TypeScript compiler (DefinitelyTyped fallback); Python wheels parsed statically, never executed. `exists: null` = not knowable statically.
-- Evidence: USENIX Security 2025 — 19.7% of 2.23M generated code samples referenced a non-existent package; 43% of invented names recur on every rerun.
+- Evidence: A USENIX Security 2025 study (Spracklen et al.) had 16 models write 576,000 code samples; of the 2.23 million package recommendations in them, 440,445 (19.7%) named packages that do not exist (205,474 unique names). In a separate rerun of 500 prompts that had produced a hallucination, 10 times each, 43% of those hallucinated names came back in all 10 runs.
 - Threat model: ExactGround stops an agent that hallucinates or mistypes a package name in a normal install command. It is a cooperative guardrail, not a sandbox against an agent deliberately evading it; use OS/container sandboxing for that.
 - Limits: agent hooks are guardrails, not a security boundary. Hooks deny on registry outage or internal error by default. Installs inside `node -e`/`python -c`, `$(...)` or `eval` are denied (cannot be checked). The cache never allows on the hook path. A project .exactground.json counts only after a human runs `exactground trust`.
-- Hosted API status: awaiting Apify Store publication; the MCP URL answers only its owner until https://apify.com/dropin-apis/exactground-api loads.
+- Hosted API status: live on the Apify Store since 2026-10-03 (https://apify.com/dropin-apis/exactground-api); calls need an Apify API token.
 
 ## Related
 
