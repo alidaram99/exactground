@@ -1,5 +1,5 @@
 {
-  "description": "ExactGround: block installs of packages that do not exist (or look like typosquats) before the agent runs them.",
+  "description": "ExactGround: block installs of packages that do not exist (or look like typosquats) before the agent runs them. PreToolUse = Claude Code; BeforeTool = Gemini CLI.",
   "hooks": {
     "PreToolUse": [
       {
@@ -8,8 +8,25 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/bin/exactground.mjs", "hook", "claude"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/exactground.mjs",
+              "hook",
+              "claude"
+            ],
             "timeout": 15
+          }
+        ]
+      }
+    ],
+    "BeforeTool": [
+      {
+        "matcher": "run_shell_command|write_file|replace",
+        "hooks": [
+          {
+            "type": "command",
+            "name": "exactground",
+            "command": "node \"${extensionPath}/bin/exactground.mjs\" hook gemini",
+            "timeout": 15000
           }
         ]
       }

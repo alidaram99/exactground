@@ -112,10 +112,24 @@ test('init --write merges hooks without removing existing ones, and is idempoten
   for (const v of ['codex', 'gemini', 'cursor']) assert.ok(hookConfig(v, ROOT).file);
 });
 
+test('Gemini extension and shared hooks file serve both Claude Code and Gemini CLI; versions agree', () => {
+  const hooks = JSON.parse(fs.readFileSync(path.join(ROOT, 'hooks/hooks.json'), 'utf8')).hooks;
+  assert.ok(hooks.PreToolUse && hooks.BeforeTool);
+  assert.match(hooks.BeforeTool[0].hooks[0].command, /\$\{extensionPath\}\/bin\/exactground\.mjs" hook gemini$/);
+  const gem = JSON.parse(fs.readFileSync(path.join(ROOT, 'gemini-extension.json'), 'utf8'));
+  assert.equal(gem.name, 'exactground');
+  assert.ok(fs.existsSync(path.join(ROOT, gem.contextFileName)));
+  const v = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+  for (const f of ['gemini-extension.json', 'server.json', 'plugin.json', '.claude-plugin/plugin.json', '.codex-plugin/plugin.json']) {
+    assert.equal(JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8')).version, v, f);
+  }
+  assert.ok(JSON.parse(fs.readFileSync(path.join(ROOT, 'server.json'), 'utf8')).description.length <= 100);
+});
+
 test('plugin manifests are valid JSON and point at existing files', () => {
   const hooks = JSON.parse(fs.readFileSync(path.join(ROOT, 'hooks/hooks.json'), 'utf8'));
   assert.equal(hooks.hooks.PreToolUse[0].hooks[0].args[0], '${CLAUDE_PLUGIN_ROOT}/bin/exactground.mjs');
-  for (const f of ['.claude-plugin/plugin.json', '.claude-plugin/marketplace.json', '.codex-plugin/plugin.json', 'plugin.json', 'hooks/codex.json', '.agents/plugins/marketplace.json']) {
+  for (const f of ['.claude-plugin/plugin.json', '.claude-plugin/marketplace.json', '.codex-plugin/plugin.json', 'plugin.json', 'hooks/codex.json', '.agents/plugins/marketplace.json', 'gemini-extension.json', 'server.json']) {
     JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8'));
   }
 });

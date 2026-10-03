@@ -1,10 +1,21 @@
 name: Publish to the MCP Registry
-# Publishes server.json (a remote MCP server) to registry.modelcontextprotocol.io under io.github.alidaram99
-# using GitHub OIDC — no tokens or secrets. Runs on each release, or by hand.
+# Publishes server.json (a remote MCP server on Apify) to registry.modelcontextprotocol.io as
+# io.github.alidaram99/exactground, authenticated with GitHub OIDC (no tokens or secrets).
+#
+# Guard: publish only when (1) the Apify Actor behind the remote URL is public, so users can call it, and
+# (2) server.json's version is not already in the registry (versions are immutable and must be unique).
+# Runs on each release, daily (so it completes on its own once the Actor goes public), and by hand.
 on:
   release:
     types: [published]
-  workflow_dispatch: {}
+  schedule:
+    - cron: '47 6 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Publish even if the Apify Actor is not public yet'
+        type: boolean
+        default: false
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -13,10 +24,29 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+      - name: Decide whether to publish
+        id: gate
+        env:
+          FORCE: ${{ inputs.force }}
+        run: |
+          VERSION=$(node -p "require('./server.json').version")
+          NAME=$(node -p "require('./server.json').name")
+          PUBLIC=$(curl -s https://api.apify.com/v2/acts/dropin-apis~exactground-api | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{console.log(JSON.parse(s).data?.isPublic===true)}catch{console.log(false)}})")
+          LISTED=$(curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=exactground&version=latest" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);console.log((j.servers||[]).some(x=>(x.server||x).name==='$NAME'&&(x.server||x).version==='$VERSION'))}catch{console.log(false)}})")
+          echo "server.json $NAME@$VERSION · actor public: $PUBLIC · already listed: $LISTED · force: $FORCE"
+          if [ "$LISTED" = "true" ]; then echo "publish=false" >> "$GITHUB_OUTPUT"; echo "::notice::$NAME@$VERSION is already in the registry."; 
+          elif [ "$PUBLIC" = "true" ] || [ "$FORCE" = "true" ]; then echo "publish=true" >> "$GITHUB_OUTPUT";
+          else echo "publish=false" >> "$GITHUB_OUTPUT"; echo "::notice::The Apify Actor is not public yet; not publishing $VERSION. This workflow re-checks daily."; fi
       - name: Install mcp-publisher
+        if: steps.gate.outputs.publish == 'true'
         run: |
           curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
       - name: Log in with GitHub OIDC
+        if: steps.gate.outputs.publish == 'true'
         run: ./mcp-publisher login github-oidc
       - name: Publish
+        if: steps.gate.outputs.publish == 'true'
         run: ./mcp-publisher publish
+      - name: Confirm the entry is live
+        if: steps.gate.outputs.publish == 'true'
+        run: curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=exactground" | head -c 1500

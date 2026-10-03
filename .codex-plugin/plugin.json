@@ -1,6 +1,6 @@
 {
   "name": "exactground",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Block hallucinated and typosquatted npm/PyPI installs before the agent runs them.",
   "hooks": "./hooks/codex.json"
 }

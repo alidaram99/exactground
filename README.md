@@ -1,12 +1,12 @@
 # ExactGround: stop AI coding agents from installing packages that do not exist
 
-**ExactGround is a free, open-source guard for AI coding agents (Claude Code, Codex, Gemini CLI, Cursor).** It checks every `npm`/`pnpm`/`yarn`/`bun`/`npx` and `pip`/`uv`/`poetry`/`pdm`/`pipx` install, and every new dependency written into a manifest, against the public npm registry and PyPI before the command runs. It blocks:
-- package names that do not exist (hallucinated packages, the root of "slopsquatting");
-- versions that were never published;
-- young or little-used look-alikes of popular packages;
-- npm security placeholders.
+**ExactGround blocks an AI coding agent from installing an npm or PyPI package that does not exist, and its hosted check tells you whether a function exists in the exact version you have installed.**
 
-It has zero dependencies, runs locally and is MIT-licensed. An optional hosted API also answers "does this function exist in *this* version?".
+The free, open-source guard runs as a hook in Claude Code, Codex, Gemini CLI and Cursor. It checks the following against the public npm registry and PyPI **before the command runs**:
+- every `npm`/`pnpm`/`yarn`/`bun`/`npx` and `pip`/`uv`/`poetry`/`pdm`/`pipx` install;
+- every new dependency written into a manifest.
+
+It blocks hallucinated package names (the root of *slopsquatting*), versions that were never published, young or little-used look-alikes of popular packages, and npm security placeholders. Zero dependencies, local, MIT.
 
 [![CI](https://github.com/alidaram99/exactground/actions/workflows/ci.yml/badge.svg)](https://github.com/alidaram99/exactground/actions/workflows/ci.yml) · Website: https://alidaram99.github.io/exactground/ · Hosted API: https://apify.com/dropin-apis/exactground-api
 
@@ -37,7 +37,7 @@ npx -y github:alidaram99/exactground manifest package.json
 For hooks, use a local checkout (faster, and no download on every tool call):
 
 ```sh
-git clone --depth 1 --branch v0.1.0 https://github.com/alidaram99/exactground.git ~/tools/exactground
+git clone --depth 1 --branch v0.1.1 https://github.com/alidaram99/exactground.git ~/tools/exactground
 ```
 
 ## Add it to your coding agent
@@ -60,14 +60,18 @@ Manual alternative: `node ~/tools/exactground/bin/exactground.mjs init claude --
 ### Codex
 
 ```sh
-codex plugin marketplace add alidaram99/exactground --ref v0.1.0
+codex plugin marketplace add alidaram99/exactground --ref v0.1.1
 ```
 
 Install the plugin, then review and trust the hook in `/hooks`; Codex only runs trusted hooks. Manual alternative: `exactground init codex --write` writes `.codex/hooks.json`, with `PreToolUse` on `Bash` and `apply_patch`, so patches that add dependencies to `package.json`, `requirements.txt` or `pyproject.toml` are checked too.
 
-### Gemini CLI
+### Gemini CLI (extension)
 
-`exactground init gemini --write` adds a `BeforeTool` hook for `run_shell_command|write_file|replace` to `.gemini/settings.json`.
+```sh
+gemini extensions install https://github.com/alidaram99/exactground --ref v0.1.1
+```
+
+The extension's `BeforeTool` hook covers `run_shell_command|write_file|replace`. Manual alternative: `exactground init gemini --write` adds the same hook to `.gemini/settings.json`.
 
 ### Cursor
 
@@ -169,6 +173,13 @@ npm test        # 27 offline tests: parser, policy, cache, all four hook formats
 ```
 
 Popular-package lists come from [npm-high-impact](https://github.com/wooorm/npm-high-impact) (MIT) and [top-pypi-packages](https://hugovk.github.io/top-pypi-packages/) (see `data/`).
+
+## More tools from the same team
+
+- [DoneLatch](https://alidaram99.github.io/donelatch/): no agent "done" without fresh, fault-sensitive evidence.
+- [CanaryIndex](https://alidaram99.github.io/canaryindex/): public, regularly re-run scorecards for agent tools.
+- [Waraq](https://alidaram99.github.io/waraqmd/): a free offline Markdown reader and editor for agent files, on laptop and phone.
+- All tools: https://alidaram99.github.io/
 
 ## License
 

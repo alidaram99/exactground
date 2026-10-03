@@ -18,6 +18,8 @@ FAQ = [
      "Yes. Codex uses a PreToolUse hook on Bash and apply_patch, Gemini CLI a BeforeTool hook, and Cursor a beforeShellExecution hook. Run `exactground init <agent> --write` in your project."),
     ("How do I check that a function exists in the exact version of a package?",
      "Use the hosted ExactGround API, an MCP server at https://dropin-apis--exactground-api.apify.actor/mcp. Its check_symbols tool reads npm type declarations with the TypeScript compiler and Python wheels statically, and answers exists true, false or null for a symbol in a specific version. It costs $0.002 per symbol."),
+    ("How do I install ExactGround as a Gemini CLI extension?",
+     "Run `gemini extensions install https://github.com/alidaram99/exactground --ref v0.1.1`. The extension adds a BeforeTool hook for run_shell_command, write_file and replace."),
     ("Is ExactGround free?",
      "The local guard (CLI and agent hooks) is free and MIT-licensed. Only the hosted version-exact API is paid per check through Apify."),
     ("Is an agent hook a security boundary?",
@@ -29,7 +31,7 @@ LD = [
      "applicationCategory": "DeveloperApplication", "operatingSystem": "Windows, macOS, Linux",
      "description": "Free open-source guard that stops AI coding agents from installing npm or PyPI packages that do not exist, plus a hosted MCP API for version-exact API checks.",
      "url": "https://alidaram99.github.io/exactground/", "downloadUrl": "https://github.com/alidaram99/exactground",
-     "softwareVersion": "0.1.0", "license": "https://opensource.org/licenses/MIT",
+     "softwareVersion": "0.1.1", "license": "https://opensource.org/licenses/MIT",
      "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}},
     {"@context": "https://schema.org", "@type": "FAQPage",
      "mainEntity": [{"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a.replace('`', '')}} for q, a in FAQ]},
@@ -70,7 +72,7 @@ table{{border-collapse:collapse;width:100%;font-size:15px}} td,th{{border:1px so
 </head>
 <body>
 <div class="hero"><img src="icon.png" alt="ExactGround logo"><div><h1>Stop AI coding agents from installing packages that don't exist</h1></div></div>
-<p><strong>ExactGround is a free, open-source guard for Claude Code, Codex, Gemini CLI and Cursor.</strong> It checks every <code>npm</code>/<code>pnpm</code>/<code>yarn</code>/<code>bun</code>/<code>npx</code> and <code>pip</code>/<code>uv</code>/<code>poetry</code> install, and every new dependency written into a manifest, against the public npm registry and PyPI <em>before the command runs</em>. It blocks hallucinated package names (the root of slopsquatting), versions that were never published, young look-alikes of popular packages and npm security placeholders.</p>
+<p><strong>To stop an AI coding agent from installing packages that don't exist, put a check in front of its install commands.</strong> ExactGround is a free, open-source hook for Claude Code, Codex, Gemini CLI and Cursor that does exactly that. It checks every <code>npm</code>/<code>pnpm</code>/<code>yarn</code>/<code>bun</code>/<code>npx</code> and <code>pip</code>/<code>uv</code>/<code>poetry</code> install, and every new dependency written into a manifest, against the public npm registry and PyPI <em>before the command runs</em>. It blocks hallucinated package names (the root of slopsquatting), versions that were never published, young look-alikes of popular packages and npm security placeholders.</p>
 <p class="cta"><a href="https://github.com/alidaram99/exactground">GitHub (MIT)</a><a href="https://apify.com/dropin-apis/exactground-api">Hosted MCP API</a></p>
 <pre><code>$ npx -y github:alidaram99/exactground check pypi:requests pypi:reqeusts react@99.0.0
 OK      pypi:requests
@@ -82,8 +84,8 @@ BLOCK   react@99.0.0 — version 99.0.0 of "react" was never published (latest i
 <table>
 <tr><th>Agent</th><th>How</th><th>Hook</th></tr>
 <tr><td>Claude Code</td><td><code>claude plugin marketplace add alidaram99/exactground</code><br><code>claude plugin install exactground@exactground-marketplace</code></td><td>PreToolUse on Bash, Write, Edit, MultiEdit</td></tr>
-<tr><td>Codex</td><td><code>codex plugin marketplace add alidaram99/exactground --ref v0.1.0</code> then trust it in <code>/hooks</code></td><td>PreToolUse on Bash and apply_patch</td></tr>
-<tr><td>Gemini CLI</td><td><code>exactground init gemini --write</code></td><td>BeforeTool</td></tr>
+<tr><td>Codex</td><td><code>codex plugin marketplace add alidaram99/exactground --ref v0.1.1</code> then trust it in <code>/hooks</code></td><td>PreToolUse on Bash and apply_patch</td></tr>
+<tr><td>Gemini CLI</td><td><code>gemini extensions install https://github.com/alidaram99/exactground --ref v0.1.1</code></td><td>BeforeTool</td></tr>
 <tr><td>Cursor</td><td><code>exactground init cursor --write</code></td><td>beforeShellExecution</td></tr>
 </table>
 <h2>Version-exact API checks (MCP)</h2>
@@ -92,7 +94,10 @@ BLOCK   react@99.0.0 — version 99.0.0 of "react" was never published (latest i
   --header "Authorization: Bearer $APIFY_TOKEN"</code></pre>
 <h2>FAQ</h2>
 {faq_html}
-<p style="margin-top:3em;color:#5b6e67;font-size:14px">MIT · Not affiliated with npm, PyPI, Anthropic, OpenAI, Google or Cursor · <a href="llms.txt">llms.txt</a></p>
+<footer style="margin-top:3em;border-top:1px solid #d6e5df;padding-top:1em;font-size:14px;color:#5b6e67">
+<p><strong>More tools from the same team:</strong> <a href="https://alidaram99.github.io/donelatch/">DoneLatch</a> (no agent “done” without evidence) · <a href="https://alidaram99.github.io/canaryindex/">CanaryIndex</a> (live scorecards for agent tools) · <a href="https://alidaram99.github.io/waraqmd/">Waraq</a> (offline Markdown reader/editor) · <a href="https://alidaram99.github.io/">all tools</a></p>
+<p>MIT · Not affiliated with npm, PyPI, Anthropic, OpenAI, Google or Cursor · <a href="https://github.com/alidaram99/exactground">GitHub</a> · <a href="llms.txt">llms.txt</a></p>
+</footer>
 </body>
 </html>
 """

@@ -1,6 +1,6 @@
 {
   "name": "exactground",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Stop AI coding agents from installing packages that do not exist (slopsquatting) — hooks for Claude Code, Codex, Gemini CLI and Cursor, plus version-exact API checks.",
   "type": "module",
   "engines": { "node": ">=20" },
