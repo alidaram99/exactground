@@ -7,5 +7,5 @@ export { lookalikeOf, popularRank, editDistance } from './typosquat.mjs';
 export { lookup, lookupNpm, lookupPypi, Cache } from './registry.mjs';
 export { evaluate, formatOutput, depsForEvent } from './hook.mjs';
 export { callApi } from './api.mjs';
-export { loadHookConfig, trustProjectConfig, isProtectedPath, shellTouchesProtected, userConfigDir } from './trust.mjs';
+export { loadHookConfig, trustProjectConfig, isProtectedPath, shellTouchesProtected, shellProtectedReason, userConfigDir } from './trust.mjs';
 export { hasOpaqueInstall } from './analyze.mjs';

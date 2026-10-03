@@ -13,7 +13,7 @@ It blocks hallucinated package names (the root of *slopsquatting*), versions tha
 **Out of scope, on purpose:** an agent running as your user that deliberately obfuscates its commands (building program names or file paths at run time, writing its own scripts, encoding commands) can defeat any hook-based guard, including this one. ExactGround denies the obfuscation patterns it knows, but it does not chase this class further. For an agent you treat as adversarial, run it in an OS sandbox or container, or as a separate OS user that cannot write your ExactGround config. See [SECURITY.md](SECURITY.md).
 
 **What it does not see:**
-- Installs hidden inside inline scripts (`node -e`, `python -c`), command substitution (`$(...)`), `eval`/`iex`/`Start-Process` or `-EncodedCommand` cannot be checked, so the hook **denies** them and asks for a plain install command. Package managers reached through variables (`n=npm; $n install x`), 8.3 short names (`NPM~1.EXE`), `.cmd/.ps1` suffixes and full paths are resolved and checked. Program names built at run time (`& ('np'+'m')`, `for %I in (npm) do ...`) are denied; cmd carets (`np^m`) are removed and checked.
+- Installs hidden inside inline scripts (`node -e`, `python -c`), command substitution (`$(...)`), `eval`/`iex`/`Start-Process` or `-EncodedCommand` cannot be checked, so the hook **denies** them and asks for a plain install command. Package managers reached through variables (`n=npm; $n install x`), 8.3 short names (`NPM~1.EXE`), `.cmd/.ps1` suffixes and full paths are resolved and checked. Program names built at run time (`& ('np'+'m')`, `for %I in (npm) do ...`) and package names held in variables (`npm install $p`) are denied; cmd carets (`np^m`) are removed and checked. A loop or call with a literal manager (`ForEach-Object { npx eslint $_ }`, `& $python -m pip install requests`) is parsed and checked normally.
 - Every tool call is inspected: any tool that carries a `command` is treated as a shell, and every non-read-only tool has its file paths checked against ExactGround's own policy files. Anything run outside the agent (CI, cron, other programs) is not seen.
 - Hooks are guardrails, not a sandbox: an agent with other ways to run code can get around them (see the threat model above).
 - If the registry cannot be reached, or the checker itself fails, the hook **denies** by default.
@@ -21,7 +21,7 @@ It blocks hallucinated package names (the root of *slopsquatting*), versions tha
 [![CI](https://github.com/alidaram99/exactground/actions/workflows/ci.yml/badge.svg)](https://github.com/alidaram99/exactground/actions/workflows/ci.yml) · Website: https://alidaram99.github.io/exactground/ · Hosted API: https://apify.com/dropin-apis/exactground-api
 
 ```console
-$ npx -y github:alidaram99/exactground#v0.1.4 check pypi:requests pypi:reqeusts pypi:huggingface-cli react@99.0.0
+$ npx -y github:alidaram99/exactground#v0.1.5 check pypi:requests pypi:reqeusts pypi:huggingface-cli react@99.0.0
 OK      pypi:requests
 BLOCK   pypi:reqeusts — "reqeusts" does not exist on PyPI; did you mean "requests"? (it is 1 edit away)
 BLOCK   pypi:huggingface-cli — "huggingface-cli" does not exist on PyPI
@@ -39,15 +39,15 @@ BLOCK   react@99.0.0 — version 99.0.0 of "react" was never published (latest i
 Node.js 20 or newer. No install needed:
 
 ```sh
-npx -y github:alidaram99/exactground#v0.1.4 check left-pad expresss pypi:numpy==1.26.4
-npx -y github:alidaram99/exactground#v0.1.4 scan "npm i zod react-hook-formz && pip install -r requirements.txt"
-npx -y github:alidaram99/exactground#v0.1.4 manifest package.json
+npx -y github:alidaram99/exactground#v0.1.5 check left-pad expresss pypi:numpy==1.26.4
+npx -y github:alidaram99/exactground#v0.1.5 scan "npm i zod react-hook-formz && pip install -r requirements.txt"
+npx -y github:alidaram99/exactground#v0.1.5 manifest package.json
 ```
 
 For hooks, use a local checkout of a tagged release (faster, pinned, and nothing is downloaded at hook time):
 
 ```sh
-git clone --depth 1 --branch v0.1.4 https://github.com/alidaram99/exactground.git ~/tools/exactground
+git clone --depth 1 --branch v0.1.5 https://github.com/alidaram99/exactground.git ~/tools/exactground
 ```
 
 ## Add it to your coding agent
@@ -70,7 +70,7 @@ Manual alternative: `node ~/tools/exactground/bin/exactground.mjs init claude --
 ### Codex
 
 ```sh
-codex plugin marketplace add alidaram99/exactground --ref v0.1.4
+codex plugin marketplace add alidaram99/exactground --ref v0.1.5
 ```
 
 Install the plugin, then review and trust the hook in `/hooks`; Codex only runs trusted hooks. Manual alternative: `exactground init codex --write` writes `.codex/hooks.json`, with `PreToolUse` on `Bash` and `apply_patch`, so patches that add dependencies to `package.json`, `requirements.txt` or `pyproject.toml` are checked too.
@@ -78,7 +78,7 @@ Install the plugin, then review and trust the hook in `/hooks`; Codex only runs 
 ### Gemini CLI (extension)
 
 ```sh
-gemini extensions install https://github.com/alidaram99/exactground --ref v0.1.4
+gemini extensions install https://github.com/alidaram99/exactground --ref v0.1.5
 ```
 
 The extension's `BeforeTool` hook covers `run_shell_command|write_file|replace`. Manual alternative: `exactground init gemini --write` adds the same hook to `.gemini/settings.json`.

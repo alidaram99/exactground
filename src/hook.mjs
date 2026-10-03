@@ -10,7 +10,7 @@
 import path from 'node:path';
 import { depsFromCommand, depsFromFileWrite, depsFromFileEdit, depsFromPatch } from './analyze.mjs';
 import { checkDeps, describe } from './check.mjs';
-import { loadHookConfig, isProtectedPath, shellTouchesProtected } from './trust.mjs';
+import { loadHookConfig, isProtectedPath, shellProtectedReason } from './trust.mjs';
 
 export const VENDORS = ['claude', 'codex', 'gemini', 'cursor'];
 
@@ -65,7 +65,7 @@ export function depsForEvent(ev) {
     : (SHELL_TOOLS.has(tool) || (carriesCommand && !PATCH_TOOLS.has(tool))) ? commandText(input.command ?? input.cmd) : null;
   if (shell != null) {
     const r = depsFromCommand(shell, cwd);
-    return { ...r, protectedWrite: shellTouchesProtected(shell) ? 'a shell command that writes ExactGround policy, trust or cache files' : null };
+    return { ...r, protectedWrite: shellProtectedReason(shell) };
   }
   if (PATCH_TOOLS.has(tool)) {
     const patch = commandText(input.command ?? input.patch ?? input.input);

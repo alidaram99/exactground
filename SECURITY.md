@@ -4,7 +4,7 @@
 
 ExactGround is a **cooperative guardrail** that runs as a hook in an AI coding agent: Claude Code, Codex, Gemini CLI or Cursor. It stops an agent that **hallucinates or mistypes** a package name, or asks for a version that was never published, in an install command it can parse. It also:
 
-- denies installs it cannot inspect, such as inline scripts, `$(...)`, `eval`/`iex`, encoded PowerShell, program names built at run time, and loops that run a package manager;
+- denies installs it cannot inspect, such as inline scripts, `$(...)`, `eval`/`iex`, encoded PowerShell, program names built at run time, loops whose program is a variable, and package names held in variables (a loop or call with a literal `npm`/`npx`/`pip` is parsed and checked like any other command);
 - denies writes to its own policy, approval and cache files, including NTFS streams such as `.exactground.json::$DATA` and paths built with `Join-Path`, string concatenation or environment variables;
 - ignores a project or user config until a human approves its exact content with `exactground trust`;
 - denies when the registry or the checker fails.
@@ -37,4 +37,4 @@ Reports that need a deliberately obfuscated command fall under the out-of-scope 
 
 ## Supported versions
 
-Only the latest release receives fixes. Pin a release tag (for example `#v0.1.4` or `--ref v0.1.4`) and update when a new one is published.
+Only the latest release receives fixes. Pin a release tag (for example `#v0.1.5` or `--ref v0.1.5`) and update when a new one is published.

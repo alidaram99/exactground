@@ -8,10 +8,10 @@
 
 ## Quick answers
 
-- Check names now: `npx -y github:alidaram99/exactground#v0.1.4 check pypi:reqeusts react@99.0.0`
+- Check names now: `npx -y github:alidaram99/exactground#v0.1.5 check pypi:reqeusts react@99.0.0`
 - Claude Code: `claude plugin marketplace add alidaram99/exactground` then `claude plugin install exactground@exactground-marketplace` (PreToolUse hook on Bash|Write|Edit|MultiEdit).
-- Codex: `codex plugin marketplace add alidaram99/exactground --ref v0.1.4`, or `exactground init codex --write` (PreToolUse on Bash and apply_patch).
-- Gemini CLI: `gemini extensions install https://github.com/alidaram99/exactground --ref v0.1.4` (BeforeTool hook), or `exactground init gemini --write`. Cursor: `exactground init cursor --write` (beforeShellExecution).
+- Codex: `codex plugin marketplace add alidaram99/exactground --ref v0.1.5`, or `exactground init codex --write` (PreToolUse on Bash and apply_patch).
+- Gemini CLI: `gemini extensions install https://github.com/alidaram99/exactground --ref v0.1.5` (BeforeTool hook), or `exactground init gemini --write`. Cursor: `exactground init cursor --write` (beforeShellExecution).
 - Blocks: names missing from the registry, never-published pinned versions, npm security placeholders, look-alikes of top-3,000 packages that are < 180 days old or < 500 weekly downloads. Warns: new (< 30 days), low downloads, deprecated, yanked.
 - Checks bare installs (`npm install`, `uv sync`, `poetry install`) against the lockfile, `pip install -r` files, and manifest edits/patches.
 - Config: `.exactground.json` with `allow`, `privateScopes`, `strict`.

@@ -19,7 +19,7 @@ FAQ = [
     ("How do I check that a function exists in the exact version of a package?",
      "Use the hosted ExactGround API, an MCP server at https://dropin-apis--exactground-api.apify.actor/mcp. Its check_symbols tool reads npm type declarations with the TypeScript compiler and Python wheels statically, and answers exists true, false or null for a symbol in a specific version. It costs $0.002 per symbol."),
     ("How do I install ExactGround as a Gemini CLI extension?",
-     "Run `gemini extensions install https://github.com/alidaram99/exactground --ref v0.1.4`. The extension adds a BeforeTool hook for run_shell_command, write_file and replace."),
+     "Run `gemini extensions install https://github.com/alidaram99/exactground --ref v0.1.5`. The extension adds a BeforeTool hook for run_shell_command, write_file and replace."),
     ("Is ExactGround free?",
      "The local guard (CLI and agent hooks) is free and MIT-licensed. Only the hosted version-exact API is paid per check through Apify."),
     ("Is an agent hook a security boundary?",
@@ -31,7 +31,7 @@ LD = [
      "applicationCategory": "DeveloperApplication", "operatingSystem": "Windows, macOS, Linux",
      "description": "Free open-source guard that stops AI coding agents from installing npm or PyPI packages that do not exist, plus a hosted MCP API for version-exact API checks.",
      "url": "https://alidaram99.github.io/exactground/", "downloadUrl": "https://github.com/alidaram99/exactground",
-     "softwareVersion": "0.1.4", "license": "https://opensource.org/licenses/MIT",
+     "softwareVersion": "0.1.5", "license": "https://opensource.org/licenses/MIT",
      "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}},
     {"@context": "https://schema.org", "@type": "FAQPage",
      "mainEntity": [{"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a.replace('`', '')}} for q, a in FAQ]},
@@ -77,7 +77,7 @@ table{{border-collapse:collapse;width:100%;font-size:15px}} td,th{{border:1px so
 <p><strong>Out of scope, on purpose:</strong> an agent running as your user that deliberately obfuscates its commands (program names or file paths built at run time, its own scripts, encoded commands) can defeat any hook-based guard, including this one. ExactGround denies the obfuscation patterns it knows but does not chase this class further. For an adversarial agent, use an OS sandbox or container, or a separate OS user. <a href="https://github.com/alidaram99/exactground/blob/main/SECURITY.md">SECURITY.md</a></p>
 <p><strong>Limits, up front:</strong> installs hidden in <code>node -e</code>/<code>python -c</code>, <code>$(...)</code> or <code>eval</code> cannot be checked, so they are denied; every tool call is inspected (any tool with a command is treated as a shell, and file paths are checked); if the registry or the checker fails, the hook denies. Hooks are guardrails, not a sandbox.</p>
 <p class="cta"><a href="https://github.com/alidaram99/exactground">GitHub (MIT)</a><a href="https://apify.com/dropin-apis/exactground-api">Hosted MCP API</a></p>
-<pre><code>$ npx -y github:alidaram99/exactground#v0.1.4 check pypi:requests pypi:reqeusts react@99.0.0
+<pre><code>$ npx -y github:alidaram99/exactground#v0.1.5 check pypi:requests pypi:reqeusts react@99.0.0
 OK      pypi:requests
 BLOCK   pypi:reqeusts — "reqeusts" does not exist on PyPI; did you mean "requests"? (it is 1 edit away)
 BLOCK   react@99.0.0 — version 99.0.0 of "react" was never published (latest is 19.3.0)</code></pre>
@@ -87,8 +87,8 @@ BLOCK   react@99.0.0 — version 99.0.0 of "react" was never published (latest i
 <table>
 <tr><th>Agent</th><th>How</th><th>Hook</th></tr>
 <tr><td>Claude Code</td><td><code>claude plugin marketplace add alidaram99/exactground</code><br><code>claude plugin install exactground@exactground-marketplace</code></td><td>PreToolUse on Bash, Write, Edit, MultiEdit</td></tr>
-<tr><td>Codex</td><td><code>codex plugin marketplace add alidaram99/exactground --ref v0.1.4</code> then trust it in <code>/hooks</code></td><td>PreToolUse on Bash and apply_patch</td></tr>
-<tr><td>Gemini CLI</td><td><code>gemini extensions install https://github.com/alidaram99/exactground --ref v0.1.4</code></td><td>BeforeTool</td></tr>
+<tr><td>Codex</td><td><code>codex plugin marketplace add alidaram99/exactground --ref v0.1.5</code> then trust it in <code>/hooks</code></td><td>PreToolUse on Bash and apply_patch</td></tr>
+<tr><td>Gemini CLI</td><td><code>gemini extensions install https://github.com/alidaram99/exactground --ref v0.1.5</code></td><td>BeforeTool</td></tr>
 <tr><td>Cursor</td><td><code>exactground init cursor --write</code></td><td>beforeShellExecution</td></tr>
 </table>
 <h2>Version-exact API checks (MCP)</h2>
@@ -106,13 +106,13 @@ BLOCK   react@99.0.0 — version 99.0.0 of "react" was never published (latest i
 </html>
 """
 
-(DOCS / 'index.html').write_text(PAGE, encoding='utf8')
+(DOCS / 'index.html').write_text(PAGE, encoding='utf8', newline='\n')
 shutil.copyfile(ROOT / 'llms.txt', DOCS / 'llms.txt')
-(DOCS / '.nojekyll').write_text('', encoding='utf8')
-(DOCS / 'robots.txt').write_text('User-agent: *\nAllow: /\nSitemap: https://alidaram99.github.io/exactground/sitemap.xml\n', encoding='utf8')
+(DOCS / '.nojekyll').write_text('', encoding='utf8', newline='\n')
+(DOCS / 'robots.txt').write_text('User-agent: *\nAllow: /\nSitemap: https://alidaram99.github.io/exactground/sitemap.xml\n', encoding='utf8', newline='\n')
 (DOCS / 'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
                                   # Only canonical HTML pages belong in the XML sitemap; llms.txt is a
                                   # machine endpoint and is advertised separately (see index.html's
                                   # <link rel="alternate" ... href="llms.txt"> and llms.txt itself).
-                                  '  <url><loc>https://alidaram99.github.io/exactground/</loc><lastmod>2026-10-03</lastmod></url>\n</urlset>\n', encoding='utf8')
+                                  '  <url><loc>https://alidaram99.github.io/exactground/</loc><lastmod>2026-10-03</lastmod></url>\n</urlset>\n', encoding='utf8', newline='\n')
 print('site written', len(PAGE))

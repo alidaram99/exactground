@@ -169,29 +169,71 @@ function protectedMention(c, env) {
   return /[\\/]\.?config[\\/]exactground|[\\/]\.cache[\\/]exactground|AppData[\\/](Roaming|Local)[\\/]exactground|%APPDATA%[\\/]exactground|\$env:APPDATA[\\/]exactground/i.test(c);
 }
 
+// A variable or sub-expression whose value this check cannot know (`$x`, `${x}`, `$(...)`, `%X%`).
+const UNRESOLVED = /\$\(|\$\{?[A-Za-z_][\w:]*\}?|%[A-Za-z_]\w*%/;
+
 /**
- * A shell command that may write ExactGround's own policy, approval or cache files (S1, re-review).
+ * The path expressions that start at each per-user directory reference: the rest of the quoted string, the rest of the
+ * enclosing `( ... )` group (Join-Path arguments), or the rest of a bare word. Content arguments such as `-Value $x`
+ * after the path are not included.
+ */
+function userPathTails(c) {
+  const tails = [];
+  const re = new RegExp(USER_DIR_REF.source, 'gi');
+  for (const m of c.matchAll(re)) {
+    const begin = m.index + m[0].length;
+    const inDouble = (c.slice(0, m.index).match(/"/g) || []).length % 2 === 1;
+    let depth = 0;
+    let q = inDouble ? '"' : null;
+    let i = begin;
+    for (; i < c.length; i++) {
+      const ch = c[i];
+      if (q) { if (ch === q) { q = null; if (inDouble && depth === 0) break; } continue; }
+      if (ch === '"' || ch === "'") { q = ch; continue; }
+      if (ch === '(') depth++;
+      else if (ch === ')') { if (depth === 0) break; depth--; }
+      else if (depth === 0 && (ch === ';' || ch === '|' || ch === '\n')) break;
+      else if (depth === 0 && /\s/.test(ch) && (/^\s*\+/.test(c.slice(i)) || /\+\s*$/.test(c.slice(begin, i)))) continue; // `... + '\x'`
+      else if (depth === 0 && /\s/.test(ch) && /^\s+-[A-Za-z]/.test(c.slice(i))) break;
+      else if (depth === 0 && /\s/.test(ch) && !/Join-Path\s*$|Combine\(\s*$/i.test(c.slice(0, m.index))) break;
+    }
+    tails.push(c.slice(begin, i));
+  }
+  return tails;
+}
+
+/**
+ * Why a shell command may write ExactGround's own policy, approval or cache files (S1, re-reviews), or null.
  * Any simple command that mentions those files is denied unless its program only reads and nothing is redirected,
  * whatever the verb (copy, xcopy, robocopy, move, [IO.File]::WriteAllText, Out-File, redirection, ...).
  * Inline interpreter scripts that call a write API and build a policy-looking path are denied too.
  */
-export function shellTouchesProtected(command, env = process.env) {
+export function shellProtectedReason(command, env = process.env) {
   const c = String(command || '');
   const joined = collapse(c);
-  if (INLINE.test(c) && WRITE_API.test(c) && (POLICY_HINT.test(c) || POLICY_HINT.test(joined))) return true;
-  // Re-review 2: a write whose target is built at run time (Join-Path, `+`, -f, env vars) is denied when the command
-  // names ExactGround's files in any split form, or builds a path from the directories they live in.
+  const POLICY = 'a shell command that writes ExactGround policy, trust or cache files';
+  if (INLINE.test(c) && WRITE_API.test(c) && (POLICY_HINT.test(c) || POLICY_HINT.test(joined))) return POLICY;
   const w = c.replace(/\d*>\s*&\s*\d|\d*>\s*(\/dev\/null|\$null|nul)\b/gi, '');
   if (WRITE_API.test(w) || SHELL_WRITE.test(w)) {
-    if (POLICY_NAME.test(joined)) return true;
-    if (OWN_DIR_VAR.test(c)) return true;
-    if (USER_DIR_REF.test(c) && DYNAMIC_PATH.test(c)) return true;
+    // Re-review 2: ExactGround's names in any split form ('ex'+'actground'), or its own directory variables.
+    if (POLICY_NAME.test(joined) || OWN_DIR_VAR.test(c)) return POLICY;
+    // False-positive audit (v0.1.5): a dynamically built per-user path (Join-Path $HOME '.npmrc') is allowed when every
+    // part after the user directory is literal, because then its name is visible and is not ExactGround's. It is denied
+    // only when that part is a variable or sub-expression whose value cannot be known here.
+    if (USER_DIR_REF.test(c) && DYNAMIC_PATH.test(c) && userPathTails(c).some((t) => UNRESOLVED.test(t))) {
+      return 'a shell command that writes under your user profile to a path built from variables, which could be ExactGround\'s policy, trust or cache files. Write the destination path literally';
+    }
   }
   for (const simple of splitCommands(c)) {
     if (!protectedMention(simple, env)) continue;
     const prog = (tokenize(simple)[0] || '').replace(/\\/g, '/').split('/').pop().replace(/\.(exe|cmd|bat|ps1|com)$/i, '').toLowerCase();
     const readOnly = READ_ONLY.has(prog) && !/>/.test(simple) && !/\btee\b/i.test(simple) && !(prog === 'git' && !/^git\s+(status|diff|log|show|ls-files)\b/i.test(simple.trim()));
-    if (!readOnly) return true;
+    if (!readOnly) return POLICY;
   }
-  return false;
+  return null;
+}
+
+/** True if a shell command may write ExactGround's own policy, approval or cache files (see shellProtectedReason). */
+export function shellTouchesProtected(command, env = process.env) {
+  return shellProtectedReason(command, env) !== null;
 }

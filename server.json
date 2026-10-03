@@ -3,7 +3,7 @@
   "name": "io.github.alidaram99/exactground",
   "title": "ExactGround",
   "description": "Check npm/PyPI packages exist and that a function or method exists in an exact package version.",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "websiteUrl": "https://alidaram99.github.io/exactground/",
   "repository": { "url": "https://github.com/alidaram99/exactground", "source": "github" },
   "remotes": [

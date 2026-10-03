@@ -87,7 +87,7 @@ test('re-review 2 (c): writes whose target is built with Join-Path, concatenatio
     `cp evil.json "$XDG_CONFIG_HOME/exact""ground/config.json"`,
     `cp evil.json ~/.config/$n/config.json`,
     `echo {} > "%APPDATA%\\ex"^"actground\\config.json"`,
-    `Set-Content ([Environment]::GetFolderPath('ApplicationData') + '\\x\\config.json') '{}'`,
+    `Set-Content ([Environment]::GetFolderPath('ApplicationData') + "\\$d\\config.json") '{}'`,
   ]) {
     assert.equal(decision(await run(shell(c, dir))), 'deny', c);
   }

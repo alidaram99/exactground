@@ -91,6 +91,9 @@ export function baseName(t) {
   return b;
 }
 
+// A word whose value is only known at run time: `$x`, `${x}`, `$(...)`, `%X%`, `%I` (cmd for-loop variable).
+const UNRESOLVED_WORD = /^(\$|%[A-Za-z_~])/;
+
 function npmArgs(manager, args, intents, { executable = false } = {}) {
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
@@ -103,6 +106,11 @@ function npmArgs(manager, args, intents, { executable = false } = {}) {
         }
         i++;
       }
+      continue;
+    }
+    if (UNRESOLVED_WORD.test(a)) {
+      intents.push({ kind: 'opaque', reason: `the package name ${a} is a variable ExactGround cannot resolve` });
+      if (executable) break;
       continue;
     }
     const p = parseNpmSpec(a);
@@ -131,10 +139,21 @@ function pipArgs(manager, args, intents, { mode = 'install' } = {}) {
       if (PIP_VALUE_FLAGS.has(a)) i++;
       continue;
     }
+    if (UNRESOLVED_WORD.test(a)) {
+      intents.push({ kind: 'opaque', reason: `the package name ${a} is a variable ExactGround cannot resolve` });
+      found = true;
+      continue;
+    }
     const p = parsePipRequirement(a);
     if (p) { intents.push({ kind: 'package', ecosystem: 'pypi', ...p, manager, raw: a }); found = true; }
   }
   return found;
+}
+
+const PY_MODULE_MANAGERS = new Set(['pip', 'pip3', 'uv', 'pipx', 'poetry', 'pdm']);
+/** Re-quote a token so a re-joined command tokenizes back to the same words. */
+function quoteWord(t) {
+  return /[\s"']/.test(t) ? `"${t.replace(/"/g, '\\"')}"` : t;
 }
 
 /** Install intents in one simple command. */
@@ -153,6 +172,28 @@ export function intentsForCommand(cmd) {
   if (toks[0].includes('^')) toks = toks.map((t) => t.replace(/\^(.)/g, '$1'));
   const intents = [];
   const installish = toks.slice(1).some((t) => INSTALLISH.test(t)) || MANAGER_FRAGMENT.test(cmd);
+  // Loops (`for %f in (*.js) do npx prettier %f`, `ForEach-Object { npm test }`, `foreach ($p in 'npm') { & $p add x }`).
+  // A literal program in the body is parsed and checked as that command (false-positive audit, v0.1.5). The loop is
+  // opaque only when the body's program is a variable (`%I`, `$p`, `$_`) or an expression (re-review 2).
+  if (/^(for|foreach|foreach-object|%|while|until)$/i.test(toks[0])) {
+    const b = toks.findIndex((t, i) => i > 0 && /^(do|\{.*)$/i.test(t));
+    if (b < 0) return [];
+    let body = toks.slice(b + 1);
+    if (/^\{./.test(toks[b])) body = [toks[b].slice(1), ...body];
+    body = body.filter((t) => t !== '}').map((t) => t.replace(/\}$/, '')).filter(Boolean);
+    while (body.length && ['&', 'call', '.'].includes(body[0].toLowerCase())) body = body.slice(1);
+    if (!body.length) return [];
+    const bodyInstall = body.slice(1).some((t) => INSTALLISH.test(t)) || MANAGER_FRAGMENT.test(body.join(' '));
+    if (/^(\$|%|\(|\[|\{)|[+^]/.test(body[0])) {
+      return bodyInstall ? [{ kind: 'opaque', reason: `a ${toks[0]} loop runs ${body[0]}, a program ExactGround cannot resolve` }] : [];
+    }
+    return intentsForCommand(body.map(quoteWord).join(' '));
+  }
+  // `& $python -m pip install x`: the interpreter is a variable, but `-m <manager>` names the manager literally, so the
+  // command is parsed from that manager (false-positive audit, v0.1.5). A variable or expression manager stays opaque.
+  if (/^(\$|%)/.test(toks[0]) && toks[1] === '-m' && toks[2] && PY_MODULE_MANAGERS.has(baseName(toks[2]))) {
+    return intentsForCommand(toks.slice(2).map(quoteWord).join(' '));
+  }
   // An unresolved variable or expression as the program name (`$n install x`, `%PM% add x`) cannot be checked (S2).
   if (/^(\$|%|\$\{|\$\()/.test(toks[0]) && installish) {
     return [{ kind: 'opaque', reason: `the program name ${toks[0]} is a variable ExactGround cannot resolve` }];
@@ -160,13 +201,6 @@ export function intentsForCommand(cmd) {
   // A program name built by an expression (`& ('np'+'m') install x`, `& ('npm') ...`, `& (Get-Command npm) ...`) (re-review 2).
   if (/^[([{]|[+^]/.test(toks[0]) && installish) {
     return [{ kind: 'opaque', reason: `the program name ${toks[0]} is an expression ExactGround cannot resolve` }];
-  }
-  // Loops whose body runs a command (`for %I in (npm) do %I install x`, `foreach ($p in 'npm') { & $p add x }`,
-  // `'npm' | % { & $_ install x }`): the program is only known at run time (re-review 2).
-  const bodyStart = toks.findIndex((t, i) => i > 0 && /^(do|\{)$/i.test(t));
-  const loopInstall = MANAGER_FRAGMENT.test(cmd) || (bodyStart > 0 && toks.slice(bodyStart + 1).some((t) => INSTALLISH.test(t)));
-  if (/^(for|foreach|foreach-object|%|while|until)$/i.test(toks[0]) && loopInstall) {
-    return [{ kind: 'opaque', reason: `a ${toks[0]} loop runs a command ExactGround cannot resolve` }];
   }
   let tool = baseName(toks[0]);
   let rest = toks.slice(1);
