@@ -199,6 +199,21 @@ export function requirementsFileDeps(file, cwd, root = cwd, depth = 0, acc = { d
   try { st = fs.lstatSync(full); } catch { acc.errors.push(`${file}: not found`); return acc; }
   if (st.isSymbolicLink()) { acc.errors.push(`${file}: is a symbolic link; refusing to follow it`); return acc; }
   if (!st.isFile()) { acc.errors.push(`${file}: not a regular file`); return acc; }
+  // S3: a hard link can point at any file on the volume; a junction or symlinked directory can move the path
+  // outside the project while the lexical path still looks inside. Compare real paths.
+  if (st.nlink !== 1) { acc.errors.push(`${file}: has ${st.nlink} hard links; refusing to read it`); return acc; }
+  try {
+    const realBase = fs.realpathSync.native(base);
+    const realFull = fs.realpathSync.native(full);
+    const realRel = path.relative(realBase, realFull);
+    if (realRel.startsWith('..') || path.isAbsolute(realRel)) {
+      acc.errors.push(`${file}: resolves outside the project through a junction or linked directory; refusing to read it`);
+      return acc;
+    }
+  } catch {
+    acc.errors.push(`${file}: could not resolve its real path`);
+    return acc;
+  }
   if (st.size > MAX_REQUIREMENTS_BYTES) { acc.errors.push(`${file}: larger than ${MAX_REQUIREMENTS_BYTES / 1024} KB; refusing to read it`); return acc; }
   const { deps, includes } = depsFromRequirements(fs.readFileSync(full, 'utf8'));
   acc.deps.push(...deps);

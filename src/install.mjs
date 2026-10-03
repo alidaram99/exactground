@@ -14,22 +14,22 @@ export function hookConfig(vendor, root) {
     case 'claude':
       return {
         file: '.claude/settings.json',
-        config: { hooks: { PreToolUse: [{ matcher: 'Bash|Write|Edit|MultiEdit', hooks: [{ type: 'command', command: 'node', args: [cli, 'hook', 'claude'], timeout: 15 }] }] } },
+        config: { hooks: { PreToolUse: [{ matcher: '*', hooks: [{ type: 'command', command: 'node', args: [cli, 'hook', 'claude'], timeout: 15 }] }] } },
       };
     case 'codex':
       return {
         file: '.codex/hooks.json',
-        config: { hooks: { PreToolUse: [{ matcher: '^(Bash|apply_patch)$', hooks: [{ type: 'command', command: shell('codex'), timeout: 15 }] }] } },
+        config: { hooks: { PreToolUse: [{ matcher: '.*', hooks: [{ type: 'command', command: shell('codex'), timeout: 15 }] }] } },
       };
     case 'gemini':
       return {
         file: '.gemini/settings.json',
-        config: { hooks: { BeforeTool: [{ matcher: 'run_shell_command|write_file|replace', hooks: [{ type: 'command', name: MARK, command: shell('gemini'), timeout: 15000 }] }] } },
+        config: { hooks: { BeforeTool: [{ matcher: '.*', hooks: [{ type: 'command', name: MARK, command: shell('gemini'), timeout: 15000 }] }] } },
       };
     case 'cursor':
       return {
         file: '.cursor/hooks.json',
-        config: { version: 1, hooks: { beforeShellExecution: [{ command: shell('cursor'), timeout: 15 }] } },
+        config: { version: 1, hooks: { beforeShellExecution: [{ command: shell('cursor'), timeout: 15 }], preToolUse: [{ command: shell('cursor'), timeout: 15 }] } },
       };
     default:
       throw new Error(`unknown vendor ${vendor}`);

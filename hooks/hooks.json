@@ -3,7 +3,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|Write|Edit|MultiEdit",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
@@ -20,7 +20,7 @@
     ],
     "BeforeTool": [
       {
-        "matcher": "run_shell_command|write_file|replace",
+        "matcher": ".*",
         "hooks": [
           {
             "type": "command",

@@ -75,8 +75,20 @@ function stripPrefix(toks) {
   return toks.slice(i);
 }
 
-function baseName(t) {
-  return t.replace(/\\/g, '/').split('/').pop().replace(/\.(exe|cmd|bat)$/i, '').toLowerCase();
+const MANAGERS = ['npm', 'pnpm', 'yarn', 'bun', 'npx', 'bunx', 'pnpx', 'pip', 'pip3', 'uv', 'uvx', 'poetry', 'pdm', 'pipx', 'corepack', 'python', 'python3', 'py'];
+
+/**
+ * Executable name as the package-manager switch understands it: no directory, no .exe/.cmd/.bat/.ps1/.com suffix,
+ * lower case, and Windows 8.3 short names (NPM~1.EXE, POETRY~1) mapped back to the manager they abbreviate (S2).
+ */
+export function baseName(t) {
+  let b = String(t).replace(/\\/g, '/').split('/').pop().replace(/\.(exe|cmd|bat|ps1|com)$/i, '').toLowerCase();
+  const short = b.match(/^([a-z0-9]{1,6})~\d+$/);
+  if (short) {
+    const hit = MANAGERS.find((m) => m === short[1] || (m.length > 6 && m.startsWith(short[1])));
+    if (hit) b = hit;
+  }
+  return b;
 }
 
 function npmArgs(manager, args, intents, { executable = false } = {}) {
@@ -126,10 +138,18 @@ function pipArgs(manager, args, intents, { mode = 'install' } = {}) {
 }
 
 /** Install intents in one simple command. */
+const INSTALLISH = /^(install|i|in|add|a|dlx|exec|x|sync|update|upgrade)$/i;
+
 export function intentsForCommand(cmd) {
-  const toks = stripPrefix(tokenize(cmd));
+  let toks = stripPrefix(tokenize(cmd));
+  // PowerShell call operator / cmd `call` / `start`: `& npm install x`, `call npm install x`
+  while (toks.length && ['&', 'call', '.'].includes(toks[0].toLowerCase())) toks = toks.slice(1);
   if (!toks.length) return [];
   const intents = [];
+  // An unresolved variable or expression as the program name (`$n install x`, `%PM% add x`) cannot be checked (S2).
+  if (/^(\$|%|\$\{|\$\()/.test(toks[0]) && toks.slice(1).some((t) => INSTALLISH.test(t))) {
+    return [{ kind: 'opaque', reason: `the program name ${toks[0]} is a variable ExactGround cannot resolve` }];
+  }
   let tool = baseName(toks[0]);
   let rest = toks.slice(1);
 
@@ -216,6 +236,42 @@ export function intentsForCommand(cmd) {
 }
 
 /** All install intents in a full command line. */
+const ASSIGN_SH = /^(?:export\s+|set\s+|local\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$/i;
+const ASSIGN_PS = /^\$([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/;
+
+function unquote(v) {
+  const t = String(v).trim();
+  return /^(['"]).*\1$/.test(t) ? t.slice(1, -1) : t;
+}
+
+/** Replace $NAME, ${NAME} and %NAME% with values assigned earlier in the same command line. */
+function substitute(cmd, vars) {
+  return cmd
+    .replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (m, n) => (n in vars ? vars[n] : m))
+    .replace(/\$([A-Za-z_][A-Za-z0-9_]*)/g, (m, n) => (n in vars ? vars[n] : m))
+    .replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (m, n) => (n in vars ? vars[n] : m));
+}
+
+/**
+ * All install intents in a full command line. Variables assigned earlier on the same line (`n=npm; $n install x`,
+ * `$pm = "npm"; & $pm install x`, `set PM=npm && %PM% install x`) are resolved before parsing (S2).
+ */
 export function parseCommand(line) {
-  return splitCommands(line).flatMap(intentsForCommand);
+  const vars = {};
+  const out = [];
+  for (const raw of splitCommands(line)) {
+    const cmd = substitute(raw, vars);
+    const ps = cmd.match(ASSIGN_PS);
+    if (ps) { vars[ps[1]] = unquote(ps[2]); continue; }
+    const words = tokenize(cmd);
+    if (words.length && words.every((w, i) => (i === 0 && /^(export|set|local)$/i.test(w)) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(w))) {
+      for (const w of words) {
+        const m = w.match(ASSIGN_SH);
+        if (m) vars[m[1]] = unquote(m[2]);
+      }
+      continue;
+    }
+    out.push(...intentsForCommand(cmd));
+  }
+  return out;
 }

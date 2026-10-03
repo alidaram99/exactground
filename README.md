@@ -8,16 +8,18 @@ The free, open-source guard runs as a hook in Claude Code, Codex, Gemini CLI and
 
 It blocks hallucinated package names (the root of *slopsquatting*), versions that were never published, young or little-used look-alikes of popular packages, and npm security placeholders. Zero dependencies, local, MIT.
 
+**Threat model, plainly:** ExactGround stops an agent that hallucinates or mistypes a package name in a normal install command. It is a cooperative guardrail, not a sandbox: an agent that deliberately tries to evade it (by writing its own scripts, editing files the hooks do not see, or running code another way) can get around it. To contain an agent you do not trust, use OS or container sandboxing.
+
 **What it does not see:**
-- Installs hidden inside inline scripts (`node -e`, `python -c`), command substitution (`$(...)`) or `eval` cannot be checked, so the hook **denies** them and asks for a plain install command.
-- Only shell, file-write/edit and patch tools are inspected; other tools and anything run outside the agent (CI, cron) are not.
-- Hooks are guardrails, not a sandbox: an agent with other ways to run code can get around them.
+- Installs hidden inside inline scripts (`node -e`, `python -c`), command substitution (`$(...)`), `eval`/`iex`/`Start-Process` or `-EncodedCommand` cannot be checked, so the hook **denies** them and asks for a plain install command. Package managers reached through variables (`n=npm; $n install x`), 8.3 short names (`NPM~1.EXE`), `.cmd/.ps1` suffixes and full paths are resolved and checked.
+- Every tool call is inspected: any tool that carries a `command` is treated as a shell, and every non-read-only tool has its file paths checked against ExactGround's own policy files. Anything run outside the agent (CI, cron, other programs) is not seen.
+- Hooks are guardrails, not a sandbox: an agent with other ways to run code can get around them (see the threat model above).
 - If the registry cannot be reached, or the checker itself fails, the hook **denies** by default.
 
 [![CI](https://github.com/alidaram99/exactground/actions/workflows/ci.yml/badge.svg)](https://github.com/alidaram99/exactground/actions/workflows/ci.yml) · Website: https://alidaram99.github.io/exactground/ · Hosted API: https://apify.com/dropin-apis/exactground-api
 
 ```console
-$ npx -y github:alidaram99/exactground#v0.1.2 check pypi:requests pypi:reqeusts pypi:huggingface-cli react@99.0.0
+$ npx -y github:alidaram99/exactground#v0.1.3 check pypi:requests pypi:reqeusts pypi:huggingface-cli react@99.0.0
 OK      pypi:requests
 BLOCK   pypi:reqeusts — "reqeusts" does not exist on PyPI; did you mean "requests"? (it is 1 edit away)
 BLOCK   pypi:huggingface-cli — "huggingface-cli" does not exist on PyPI
@@ -35,15 +37,15 @@ BLOCK   react@99.0.0 — version 99.0.0 of "react" was never published (latest i
 Node.js 20 or newer. No install needed:
 
 ```sh
-npx -y github:alidaram99/exactground#v0.1.2 check left-pad expresss pypi:numpy==1.26.4
-npx -y github:alidaram99/exactground#v0.1.2 scan "npm i zod react-hook-formz && pip install -r requirements.txt"
-npx -y github:alidaram99/exactground#v0.1.2 manifest package.json
+npx -y github:alidaram99/exactground#v0.1.3 check left-pad expresss pypi:numpy==1.26.4
+npx -y github:alidaram99/exactground#v0.1.3 scan "npm i zod react-hook-formz && pip install -r requirements.txt"
+npx -y github:alidaram99/exactground#v0.1.3 manifest package.json
 ```
 
 For hooks, use a local checkout of a tagged release (faster, pinned, and nothing is downloaded at hook time):
 
 ```sh
-git clone --depth 1 --branch v0.1.2 https://github.com/alidaram99/exactground.git ~/tools/exactground
+git clone --depth 1 --branch v0.1.3 https://github.com/alidaram99/exactground.git ~/tools/exactground
 ```
 
 ## Add it to your coding agent
@@ -66,7 +68,7 @@ Manual alternative: `node ~/tools/exactground/bin/exactground.mjs init claude --
 ### Codex
 
 ```sh
-codex plugin marketplace add alidaram99/exactground --ref v0.1.2
+codex plugin marketplace add alidaram99/exactground --ref v0.1.3
 ```
 
 Install the plugin, then review and trust the hook in `/hooks`; Codex only runs trusted hooks. Manual alternative: `exactground init codex --write` writes `.codex/hooks.json`, with `PreToolUse` on `Bash` and `apply_patch`, so patches that add dependencies to `package.json`, `requirements.txt` or `pyproject.toml` are checked too.
@@ -74,7 +76,7 @@ Install the plugin, then review and trust the hook in `/hooks`; Codex only runs 
 ### Gemini CLI (extension)
 
 ```sh
-gemini extensions install https://github.com/alidaram99/exactground --ref v0.1.2
+gemini extensions install https://github.com/alidaram99/exactground --ref v0.1.3
 ```
 
 The extension's `BeforeTool` hook covers `run_shell_command|write_file|replace`. Manual alternative: `exactground init gemini --write` adds the same hook to `.gemini/settings.json`.
@@ -114,7 +116,7 @@ Commands wrapped in `bash -lc "…"` are unwrapped.
 
 The agent cannot approve its own exceptions:
 - The hooks honour a project `.exactground.json` only after **you** run `exactground trust` in a terminal. That records the file's SHA-256 in your user config directory, outside the project.
-- Any later edit needs approval again.
+- Any later edit needs approval again. Your user-level `config.json` is treated the same way: approve it with `exactground trust --user`.
 - A tool call that writes `.exactground.json`, the approvals or the cache is denied.
 - Settings for all projects can go in `~/.config/exactground/config.json` (`%APPDATA%\exactground\config.json` on Windows).
 

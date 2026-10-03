@@ -18,6 +18,19 @@ const SHELL_TOOLS = new Set(['Bash', 'Shell', 'run_shell_command', 'shell', 'exe
 const WRITE_TOOLS = new Set(['Write', 'write_file', 'create_file']);
 const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'replace', 'edit_file', 'str_replace_based_edit_tool']);
 const PATCH_TOOLS = new Set(['apply_patch']);
+// Tools that only read. Everything else has its path-like arguments checked against the protected files.
+const READ_ONLY_TOOL = /^(Read|Grep|Glob|LS|NotebookRead|WebFetch|WebSearch|TodoWrite|read_file|read_many_files|list_directory|glob|search_file_content|grep|web_fetch|google_web_search|view|mcp__.*__(read|get|list|search|find|view|stat)[\w-]*)$/i;
+const PATH_KEY = /(path|file|target|dest|destination|notebook|uri|filename|dir|directory|source|output)/i;
+
+/** String values of path-like keys anywhere in a tool input (nested objects and arrays included). */
+function pathLikeValues(input, depth = 0, out = []) {
+  if (!input || typeof input !== 'object' || depth > 4) return out;
+  for (const [k, v] of Object.entries(input)) {
+    if (typeof v === 'string' && PATH_KEY.test(k) && v.length < 4096) out.push(v);
+    else if (v && typeof v === 'object') pathLikeValues(v, depth + 1, out);
+  }
+  return out;
+}
 
 const SHELLS = /^(?:.*[\/])?(bash|sh|zsh|dash|fish|pwsh|powershell|cmd)(\.exe)?$/i;
 /** Codex may send argv arrays such as ["bash", "-lc", "npm install x"]; unwrap the shell to the script. */
@@ -45,7 +58,11 @@ export function depsForEvent(ev) {
   const tool = ev.tool_name;
   const input = ev.tool_input || {};
   // Cursor beforeShellExecution sends {command, cwd} at the top level.
-  const shell = !tool && typeof ev.command === 'string' ? ev.command : SHELL_TOOLS.has(tool) ? commandText(input.command ?? input.cmd) : null;
+  // S2 (re-review): any tool whose input carries a command string is a shell, whatever it is called
+  // (Claude Code's PowerShell tool, vendor-specific shell names, future tools).
+  const carriesCommand = typeof input.command === 'string' || Array.isArray(input.command) || typeof input.cmd === 'string';
+  const shell = !tool && typeof ev.command === 'string' ? ev.command
+    : (SHELL_TOOLS.has(tool) || (carriesCommand && !PATCH_TOOLS.has(tool))) ? commandText(input.command ?? input.cmd) : null;
   if (shell != null) {
     const r = depsFromCommand(shell, cwd);
     return { ...r, protectedWrite: shellTouchesProtected(shell) ? 'a shell command that writes ExactGround policy, trust or cache files' : null };
@@ -56,8 +73,10 @@ export function depsForEvent(ev) {
     return { ...EMPTY, deps: depsFromPatch(patch), protectedWrite: prot ? `a patch to ${prot}` : null };
   }
   const file = input.file_path ?? input.path ?? input.filePath;
-  if (file && (WRITE_TOOLS.has(tool) || EDIT_TOOLS.has(tool)) && isProtectedPath(file, cwd)) {
-    return { ...EMPTY, protectedWrite: `a write to ${path.basename(String(file))}` };
+  // S1 (re-review): check the paths of EVERY tool that is not read-only (NotebookEdit, MCP filesystem tools, ...).
+  if (!READ_ONLY_TOOL.test(String(tool || ''))) {
+    const hit = pathLikeValues(input).find((p) => isProtectedPath(p, cwd));
+    if (hit) return { ...EMPTY, protectedWrite: `a ${tool || 'tool'} call on ${path.basename(String(hit))}` };
   }
   if (file && WRITE_TOOLS.has(tool)) return { ...EMPTY, deps: depsFromFileWrite(file, input.content ?? '', cwd) };
   if (file && EDIT_TOOLS.has(tool)) {

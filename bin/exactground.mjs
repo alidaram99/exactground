@@ -11,7 +11,7 @@ import { Cache } from '../src/registry.mjs';
 import { runHook, VENDORS } from '../src/hook.mjs';
 import { depsFromManifest, manifestType, requirementsFileDeps } from '../src/manifest.mjs';
 import { hookConfig, installHooks } from '../src/install.mjs';
-import { trustProjectConfig, findProjectConfig, projectRoot } from '../src/trust.mjs';
+import { trustProjectConfig, findProjectConfig, projectRoot, userConfigFile } from '../src/trust.mjs';
 import { callApi } from '../src/api.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -28,6 +28,7 @@ Usage:
   exactground init <agent> [--write]    Print (or merge into this project) the hook config for an agent
   exactground trust [file]              Approve this project's .exactground.json for the agent hooks (run it yourself;
                                         any later edit needs approval again)
+  exactground trust --user              Approve your user-level config.json the same way
   exactground api <tool> <json>         Paid version-exact checks via the hosted API (needs APIFY_TOKEN):
                                         check_symbols | check_packages | check_diff
   exactground --version | --help
@@ -119,8 +120,8 @@ async function main(argv) {
       return report(depsFromManifest(type, fs.readFileSync(file, 'utf8')), flags);
     }
     case 'trust': {
-      const file = pos[0] || findProjectConfig(process.cwd());
-      if (!file || !fs.existsSync(file)) { console.error('No .exactground.json found. Usage: exactground trust [file]'); return 2; }
+      const file = flags.has('--user') ? userConfigFile() : (pos[0] || findProjectConfig(process.cwd()));
+      if (!file || !fs.existsSync(file)) { console.error(flags.has('--user') ? `No user config at ${userConfigFile()}` : 'No .exactground.json found. Usage: exactground trust [file] | exactground trust --user'); return 2; }
       const { file: full, hash } = trustProjectConfig(file);
       console.log(`Approved ${full} (sha256 ${hash.slice(0, 12)}…). The agent hooks will now honour it; any edit needs approval again.`);
       return 0;

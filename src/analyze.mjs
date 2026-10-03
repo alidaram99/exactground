@@ -11,17 +11,27 @@ function readFile(file) {
 }
 
 // Installs the parser cannot see into (security review S2): inline scripts, command substitution, eval.
-const INSTALL_WORDS = /\b(npm|pnpm|yarn|bun|npx|bunx|pip[\d.]*|uv|uvx|poetry|pdm|pipx)\b[^\n;|&]{0,40}\b(install|add|i|dlx|exec|sync)\b|\b(npx|uvx|bunx)\b/;
-const OPAQUE = [
-  /\b(node|deno|bun|python[\d.]*|py|ruby|perl|php|pwsh|powershell)(\.exe)?\s+(-e|-c|-p|--eval|--print|-command)\b/i,
-  /\$\(|`/,
-  /\beval\b/,
-];
+// A package manager named anywhere in a piece of text (8.3 short forms like NPM~1 included).
+const MANAGER = /(^|[^\w.-])(npm|pnpm|yarn|bun|npx|bunx|pnpx|pip[\d.]*|uv|uvx|poetry|pdm|pipx|npm~\d|pnpm~\d|poetry~\d)(\.(exe|cmd|bat|ps1))?(?=$|[^\w-])/i;
+
+/**
+ * Text that will be executed but cannot be parsed here (S2): inline interpreter scripts, command substitution,
+ * eval / Invoke-Expression / iex, Start-Process argument lists. Shell wrappers (bash -c, cmd /c, pwsh -Command)
+ * are not listed because parseCommand unwraps and checks them.
+ */
+function opaqueSegments(c) {
+  const segs = [];
+  for (const m of c.matchAll(/\$\(([^)]*)\)|`([^`]*)`/g)) segs.push(m[1] ?? m[2]);
+  for (const m of c.matchAll(/\b(node|deno|bun|python[\d.]*|py|ruby|perl|php)(\.exe)?\s+(-e|-c|-p|-r|--eval|--print)\s+([\s\S]*)/gi)) segs.push(m[4]);
+  for (const m of c.matchAll(/\b(eval|iex|invoke-expression|start-process|saps)\b([\s\S]*)/gi)) segs.push(m[2]);
+  return segs;
+}
 
 /** True if the command contains an install that ExactGround cannot parse (it would run unchecked). */
 export function hasOpaqueInstall(command) {
   const c = String(command || '');
-  return INSTALL_WORDS.test(c) && OPAQUE.some((re) => re.test(c));
+  if (/\s-(e|en|enc|encodedcommand)\s+[A-Za-z0-9+/=]{16,}/i.test(c) && /\b(pwsh|powershell)\b/i.test(c)) return true; // -EncodedCommand cannot be inspected
+  return opaqueSegments(c).some((s) => MANAGER.test(s));
 }
 
 /** Deps introduced by a shell command line run in `cwd`. Returns {deps, customIndex, notes, errors, opaque}. */
@@ -45,7 +55,8 @@ export function depsFromCommand(command, cwd) {
       if (!dir) notes.push(`${it.manager}: no manifest found from ${cwd}`);
     }
   }
-  return { deps, customIndex, notes, errors, opaque: hasOpaqueInstall(command), intents: intents.length };
+  const opaque = hasOpaqueInstall(command) || intents.some((it) => it.kind === 'opaque');
+  return { deps, customIndex, notes, errors, opaque, intents: intents.length };
 }
 
 /** Deps added by writing `newText` to `file` (compares with what is on disk now). */
