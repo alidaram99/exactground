@@ -50,11 +50,11 @@ PAGE = f"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ExactGround — stop AI coding agents installing packages that don't exist</title>
-<meta name="description" content="Free guard for Claude Code, Codex, Gemini CLI and Cursor: blocks hallucinated npm/PyPI packages (slopsquatting), unpublished versions and typosquats before install. MCP API for version-exact checks.">
+<title>ExactGround — stop installs of packages that don't exist</title>
+<meta name="description" content="Free guard for Claude Code, Codex, Gemini CLI and Cursor: blocks hallucinated npm/PyPI packages, unpublished versions and typosquats before install.">
 <link rel="canonical" href="https://alidaram99.github.io/exactground/">
 <link rel="icon" href="icon.png">
-<meta property="og:title" content="ExactGround — no hallucinated packages in your agent's installs">
+<meta property="og:title" content="ExactGround — stop installs of packages that don't exist">
 <meta property="og:description" content="Blocks npm/PyPI installs of names that do not exist before Claude Code, Codex, Gemini CLI or Cursor runs them. Free, MIT.">
 <meta property="og:image" content="https://alidaram99.github.io/exactground/icon.png">
 <meta property="og:url" content="https://alidaram99.github.io/exactground/">
@@ -111,6 +111,8 @@ shutil.copyfile(ROOT / 'llms.txt', DOCS / 'llms.txt')
 (DOCS / '.nojekyll').write_text('', encoding='utf8')
 (DOCS / 'robots.txt').write_text('User-agent: *\nAllow: /\nSitemap: https://alidaram99.github.io/exactground/sitemap.xml\n', encoding='utf8')
 (DOCS / 'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-                                  '  <url><loc>https://alidaram99.github.io/exactground/</loc><lastmod>2026-10-03</lastmod></url>\n'
-                                  '  <url><loc>https://alidaram99.github.io/exactground/llms.txt</loc><lastmod>2026-10-03</lastmod></url>\n</urlset>\n', encoding='utf8')
+                                  # Only canonical HTML pages belong in the XML sitemap; llms.txt is a
+                                  # machine endpoint and is advertised separately (see index.html's
+                                  # <link rel="alternate" ... href="llms.txt"> and llms.txt itself).
+                                  '  <url><loc>https://alidaram99.github.io/exactground/</loc><lastmod>2026-10-03</lastmod></url>\n</urlset>\n', encoding='utf8')
 print('site written', len(PAGE))
