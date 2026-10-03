@@ -139,16 +139,34 @@ function pipArgs(manager, args, intents, { mode = 'install' } = {}) {
 
 /** Install intents in one simple command. */
 const INSTALLISH = /^(install|i|in|add|a|dlx|exec|x|sync|update|upgrade)$/i;
+// A package-manager name anywhere in the text, also when split by quotes or concatenation (`'np'+'m'`).
+const MANAGER_WORD = /(^|[^\w.-])(npm|pnpm|yarn|bun|npx|bunx|pnpx|pip[\d.]*|uv|uvx|poetry|pdm|pipx|corepack)(\.(exe|cmd|bat|ps1))?(?=$|[^\w-])/i;
+const MANAGER_FRAGMENT = { test: (s) => MANAGER_WORD.test(s) || MANAGER_WORD.test(String(s).replace(/['"`^+]|\s*\+\s*/g, '')) };
 
 export function intentsForCommand(cmd) {
   let toks = stripPrefix(tokenize(cmd));
-  // PowerShell call operator / cmd `call` / `start`: `& npm install x`, `call npm install x`
-  while (toks.length && ['&', 'call', '.'].includes(toks[0].toLowerCase())) toks = toks.slice(1);
+  // PowerShell call operator / cmd `call` / `start`: `& npm install x`, `call npm install x`;
+  // shell loop bodies split off by `;` (`do $p install x`, `then ...`).
+  while (toks.length && ['&', 'call', '.', 'do', 'then', 'else'].includes(toks[0].toLowerCase())) toks = toks.slice(1);
   if (!toks.length) return [];
+  // cmd caret escapes in the program name (`np^m install x` runs npm): drop the carets and check it normally (re-review 2).
+  if (toks[0].includes('^')) toks = toks.map((t) => t.replace(/\^(.)/g, '$1'));
   const intents = [];
+  const installish = toks.slice(1).some((t) => INSTALLISH.test(t)) || MANAGER_FRAGMENT.test(cmd);
   // An unresolved variable or expression as the program name (`$n install x`, `%PM% add x`) cannot be checked (S2).
-  if (/^(\$|%|\$\{|\$\()/.test(toks[0]) && toks.slice(1).some((t) => INSTALLISH.test(t))) {
+  if (/^(\$|%|\$\{|\$\()/.test(toks[0]) && installish) {
     return [{ kind: 'opaque', reason: `the program name ${toks[0]} is a variable ExactGround cannot resolve` }];
+  }
+  // A program name built by an expression (`& ('np'+'m') install x`, `& ('npm') ...`, `& (Get-Command npm) ...`) (re-review 2).
+  if (/^[([{]|[+^]/.test(toks[0]) && installish) {
+    return [{ kind: 'opaque', reason: `the program name ${toks[0]} is an expression ExactGround cannot resolve` }];
+  }
+  // Loops whose body runs a command (`for %I in (npm) do %I install x`, `foreach ($p in 'npm') { & $p add x }`,
+  // `'npm' | % { & $_ install x }`): the program is only known at run time (re-review 2).
+  const bodyStart = toks.findIndex((t, i) => i > 0 && /^(do|\{)$/i.test(t));
+  const loopInstall = MANAGER_FRAGMENT.test(cmd) || (bodyStart > 0 && toks.slice(bodyStart + 1).some((t) => INSTALLISH.test(t)));
+  if (/^(for|foreach|foreach-object|%|while|until)$/i.test(toks[0]) && loopInstall) {
+    return [{ kind: 'opaque', reason: `a ${toks[0]} loop runs a command ExactGround cannot resolve` }];
   }
   let tool = baseName(toks[0]);
   let rest = toks.slice(1);
@@ -164,7 +182,9 @@ export function intentsForCommand(cmd) {
   // bash -lc "npm install x", sh -c '...', pwsh -Command "...", cmd /c "..."
   if (/^(bash|sh|zsh|dash|fish|pwsh|powershell|cmd)$/.test(tool)) {
     const i = rest.findIndex((t) => /^(-\w*c|\/c|-command)$/i.test(t));
-    return i >= 0 && rest[i + 1] ? parseCommand(rest[i + 1]) : [];
+    if (i < 0 || !rest[i + 1]) return [];
+    // cmd /c and pwsh -Command take the rest of the line as the command (`cmd /c np^m install x`); sh -c takes one word.
+    return parseCommand(/^(cmd|pwsh|powershell)$/.test(tool) ? rest.slice(i + 1).join(' ') : rest[i + 1]);
   }
   const sub = rest.find((t) => !t.startsWith('-'));
   const subIdx = rest.indexOf(sub);

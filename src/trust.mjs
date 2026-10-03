@@ -109,10 +109,27 @@ export function loadHookConfig(cwd, env = process.env) {
   return { config, notes };
 }
 
+/**
+ * The file a path really names on NTFS: `.exactground.json::$DATA` and `.exactground.json:x` are streams of
+ * `.exactground.json` (re-review 2), and Windows drops trailing dots and spaces. A drive colon (`C:`) is kept.
+ */
+export function stripStream(p) {
+  const s = String(p);
+  const cut = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
+  const dir = s.slice(0, cut + 1);
+  let name = s.slice(cut + 1);
+  const drive = cut < 0 && /^[A-Za-z]:/.test(name) ? name.slice(0, 2) : '';
+  name = name.slice(drive.length);
+  const colon = name.indexOf(':');
+  if (colon > 0) name = name.slice(0, colon);
+  if (!/^\.+$/.test(name)) name = name.replace(/[. ]+$/, '');
+  return dir + drive + (name || (dir || drive ? '' : s));
+}
+
 /** True if a path is one the agent must not write: a project config, the user config dir, or the cache dir. */
 export function isProtectedPath(p, cwd, env = process.env) {
   if (!p) return false;
-  const full = path.resolve(cwd || '.', String(p));
+  const full = path.resolve(cwd || '.', stripStream(String(p)));
   if (path.basename(full).toLowerCase() === PROJECT_CONFIG) return true;
   const inside = (dir) => {
     const rel = path.relative(path.resolve(dir), full);
@@ -127,7 +144,22 @@ const READ_ONLY = new Set(['cat', 'type', 'more', 'less', 'head', 'tail', 'get-c
 // Inline interpreters and write APIs used to build file paths dynamically (`'exact'+'ground'`).
 const INLINE = /\b(node|deno|bun|python[\d.]*|py|ruby|perl|php|pwsh|powershell)(\.exe)?\s+(-e|-c|-p|-r|--eval|--print|-command|-encodedcommand|-enc)\b/i;
 const WRITE_API = /(writeFile|appendFile|copyFile|cpSync|renameSync|rename\(|createWriteStream|WriteAllText|WriteAllBytes|AppendAllText|File\]::Copy|File\]::Move|Copy-Item|Move-Item|Set-Content|Add-Content|Out-File|New-Item|open\(|shutil\.|os\.replace|Path\(.*\)\.write|\.write_text|\.write_bytes|>)/i;
-const POLICY_HINT = /(exact|ground|trusted|registry-cache|appdata|xdg_config|\.config|\.cache)/i;
+const POLICY_HINT = /(exact|(?<![a-z])ground|trusted|registry-cache|appdata|xdg_config|\.config|\.cache)/i;
+// Shell verbs that write or replace files (in addition to WRITE_API).
+const SHELL_WRITE = /(^|[\s;&|({])(cp|copy|mv|move|ren|rename|xcopy|robocopy|rsync|tee|ln|mklink|dd|ni|sc|ac|cpi|mi|rni|Rename-Item|Set-ItemProperty|Export-Clixml|ConvertTo-Json\s.*\|\s*Set-Content)(?=$|[\s;&|)])/i;
+// ExactGround's own file and directory names, after quotes and concatenation are removed (`'ex'+'actground'`).
+const POLICY_NAME = /exactground|trusted-?projects|registry-cache/i;
+// Environment variables that point straight at ExactGround's directories.
+const OWN_DIR_VAR = /EXACTGROUND_(CONFIG|CACHE)_DIR/i;
+// The per-user directories ExactGround's config, approvals and cache live under.
+const USER_DIR_REF = /\$env:(APPDATA|LOCALAPPDATA|USERPROFILE|HOME|XDG_CONFIG_HOME|XDG_CACHE_HOME)\b|%(APPDATA|LOCALAPPDATA|USERPROFILE|HOME|XDG_CONFIG_HOME|XDG_CACHE_HOME)%|\$\{?(HOME|XDG_CONFIG_HOME|XDG_CACHE_HOME)\b|GetFolderPath|SpecialFolder|(^|[\s'"(=,])~(?=[\\/'"\s)]|$)/i;
+// A path assembled at run time rather than written out.
+const DYNAMIC_PATH = /Join-Path|\[(System\.)?IO\.Path\]::Combine|\s-f\s|\+|\$\(|path\.join|os\.path\.join|(APPDATA|USERPROFILE|HOME|XDG_CONFIG_HOME|XDG_CACHE_HOME|~)%?\}?[\\/][^\s'";|]*[$%]/i;
+
+/** The command with quotes, backticks, carets and `+` concatenation removed, so split names read whole. */
+function collapse(c) {
+  return String(c).replace(/['"`^]/g, '').replace(/\s*\+\s*/g, '');
+}
 
 function protectedMention(c, env) {
   if (/\.exactground\.json/i.test(c) || /trusted-projects\.json|registry-cache\.json/i.test(c)) return true;
@@ -145,7 +177,16 @@ function protectedMention(c, env) {
  */
 export function shellTouchesProtected(command, env = process.env) {
   const c = String(command || '');
-  if (INLINE.test(c) && WRITE_API.test(c) && POLICY_HINT.test(c)) return true;
+  const joined = collapse(c);
+  if (INLINE.test(c) && WRITE_API.test(c) && (POLICY_HINT.test(c) || POLICY_HINT.test(joined))) return true;
+  // Re-review 2: a write whose target is built at run time (Join-Path, `+`, -f, env vars) is denied when the command
+  // names ExactGround's files in any split form, or builds a path from the directories they live in.
+  const w = c.replace(/\d*>\s*&\s*\d|\d*>\s*(\/dev\/null|\$null|nul)\b/gi, '');
+  if (WRITE_API.test(w) || SHELL_WRITE.test(w)) {
+    if (POLICY_NAME.test(joined)) return true;
+    if (OWN_DIR_VAR.test(c)) return true;
+    if (USER_DIR_REF.test(c) && DYNAMIC_PATH.test(c)) return true;
+  }
   for (const simple of splitCommands(c)) {
     if (!protectedMention(simple, env)) continue;
     const prog = (tokenize(simple)[0] || '').replace(/\\/g, '/').split('/').pop().replace(/\.(exe|cmd|bat|ps1|com)$/i, '').toLowerCase();
